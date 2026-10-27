@@ -25,7 +25,16 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
     const webview = panel.webview;
     const distUri = vscode.Uri.joinPath(this.extensionUri, 'dist');
-    webview.options = { enableScripts: true, localResourceRoots: [distUri] };
+    const documentFolder = vscode.Uri.joinPath(document.uri, '..');
+    // Images may sit next to the document or anywhere in the workspace.
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        distUri,
+        documentFolder,
+        ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri),
+      ],
+    };
     webview.html = this.getHtml(webview, distUri);
 
     const post = (message: HostMessage) => void webview.postMessage(message);
@@ -45,7 +54,7 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         if (message.type === 'ready') {
-          post({ type: 'settings', settings: readSettings() });
+          post({ type: 'settings', settings: readSettings(webview, documentFolder) });
         }
         void sync.handleMessage(message);
       }),
@@ -57,7 +66,7 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('mdEditor')) {
-          post({ type: 'settings', settings: readSettings() });
+          post({ type: 'settings', settings: readSettings(webview, documentFolder) });
         }
       }),
     ];
@@ -94,9 +103,12 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   }
 }
 
-function readSettings(): EditorSettings {
+function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): EditorSettings {
   const config = vscode.workspace.getConfiguration('mdEditor');
-  return { proseFontFamily: config.get<string>('proseFontFamily', '') };
+  return {
+    proseFontFamily: config.get<string>('proseFontFamily', ''),
+    baseUri: webview.asWebviewUri(documentFolder).toString(),
+  };
 }
 
 /** Opens a Ctrl/Cmd+clicked link: web links in the browser, file links in VS Code. */

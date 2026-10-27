@@ -129,9 +129,9 @@ Everything below is a CodeMirror decoration or widget over unchanged text. **Not
 - **Images:** shown below the `![alt](src)` text. When the cursor isn't on that line, the image replaces the text.
 - **Task checkboxes:** clicking one toggles `[ ]` ↔ `[x]` with a one-character edit.
 - **Tables, math blocks, Mermaid diagrams, horizontal rules:** shown rendered while the cursor is outside the block; moving the cursor into the block shows its source.
-- **Front matter:** shown as a styled, collapsible block.
+- **Front matter:** shown as a bordered summary of its `key: value` lines. Clicking it or moving the cursor in shows the YAML source as plain monospace text.
 - **Raw HTML blocks:** shown as source by default. A setting renders them through DOMPurify.
-- Widgets the cursor can't enter are listed in `EditorView.atomicRanges`, so arrow keys skip over them. Clicking a widget puts the cursor in its source.
+- Widgets are not in `EditorView.atomicRanges`: CodeMirror already skips a replaced range with the arrow keys, and the cursor reaching its edge counts as touching it (see `reveal.ts`), so the source appears. Clicking a widget puts the cursor in its source.
 
 **Design rules:**
 - **Revealing symbols must not change line heights.** A heading keeps its size when its `#` is shown. This limits the text-shifting problem that early reviews mention in the built-in editor.
@@ -244,13 +244,13 @@ MdEditorExt/
 - [ ] **Done when:** writing a normal document feels like a rendered page, and moving the cursor never makes the text jump vertically.
 
 ### Phase 3: Live preview, blocks (4–5 days)
-- [ ] Build `blocks.ts` as a `StateField` with atomic ranges (§3.5).
-- [ ] Add widgets for:
-  - images (relative paths resolved through `baseUri`)
-  - task checkboxes (one-character toggle)
-  - tables (rendered when the cursor is outside)
-  - horizontal rules
-  - front matter
+- [x] Build `blocks.ts` as a `StateField` (§3.5). `collectBlocks` is pure and unit-tested; widgets are in `widgets.ts`.
+- [x] Add widgets for:
+  - [x] images (relative paths resolved through `baseUri`)
+  - [x] task checkboxes (one-character toggle)
+  - [x] tables (rendered when the cursor is outside)
+  - [x] horizontal rules
+  - [x] front matter
 - [ ] Highlight code blocks in place with nested languages, loaded on demand.
 - [ ] Add the math parser extension and KaTeX widgets for inline and block math.
 - [ ] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7).

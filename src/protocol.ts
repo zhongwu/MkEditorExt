@@ -29,6 +29,8 @@ export type WebviewMessage = SyncMessage | { type: 'openLink'; href: string };
 export interface EditorSettings {
   /** CSS font-family for prose; empty means VS Code's UI font. */
   proseFontFamily: string;
+  /** The document's folder as a webview URI, for resolving relative image paths. */
+  baseUri: string;
 }
 
 /**

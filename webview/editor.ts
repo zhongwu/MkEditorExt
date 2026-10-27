@@ -19,6 +19,7 @@ import {
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { tags } from '@lezer/highlight';
+import { blockPreview } from './livePreview/blocks';
 import { inlinePreview } from './livePreview/inline';
 import { linkAt } from './livePreview/links';
 import { livePreviewTheme } from './livePreview/theme';
@@ -31,6 +32,8 @@ export interface EditorOptions {
   doc: string;
   /** CSP nonce for the <style> elements CodeMirror creates. */
   nonce: string;
+  /** The document's folder as a webview URI; relative image paths resolve against it. */
+  baseUri: string;
   onLocalChange(changes: ChangeSet, startDoc: Text): void;
   onHistory(command: 'undo' | 'redo'): void;
   onOpenLink(href: string): void;
@@ -107,6 +110,7 @@ export function createEditor(options: EditorOptions): EditorView {
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(highlightStyle),
         inlinePreview,
+        blockPreview(options.baseUri),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),
         theme,

@@ -40,6 +40,65 @@ export const livePreviewTheme = EditorView.theme({
   },
   '.cm-md-bullet, .cm-md-listmark': { color: muted },
 
+  '.cm-line.cm-md-frontmatter-source': { fontFamily: codeFont, fontSize: '0.92em', color: muted },
+
+  '.cm-md-hr': {
+    margin: '0.6em 24px',
+    borderTop: '1px solid var(--vscode-textBlockQuote-border)',
+  },
+
+  '.cm-md-table': { borderCollapse: 'collapse', margin: '0.4em 24px' },
+  '.cm-md-table th, .cm-md-table td': {
+    border: '1px solid var(--vscode-textBlockQuote-border)',
+    padding: '3px 10px',
+  },
+  '.cm-md-table th': {
+    fontWeight: '600',
+    backgroundColor: 'var(--vscode-textCodeBlock-background)',
+  },
+  '.cm-md-table code': {
+    fontFamily: codeFont,
+    fontSize: '0.92em',
+    backgroundColor: 'var(--vscode-textCodeBlock-background)',
+  },
+
+  '.cm-md-frontmatter': {
+    margin: '0.4em 24px',
+    padding: '6px 12px',
+    fontFamily: codeFont,
+    fontSize: '0.9em',
+    color: muted,
+    border: '1px solid var(--vscode-textBlockQuote-border)',
+    borderRadius: '4px',
+  },
+  '.cm-md-frontmatter-title': { fontWeight: '600', marginBottom: '2px' },
+  '.cm-md-frontmatter-key': { marginRight: '0.6em', color: 'var(--vscode-editor-foreground)' },
+
+  '.cm-md-image img': { maxWidth: '100%', verticalAlign: 'middle' },
+  '.cm-md-image-below': { padding: '2px 24px' },
+  '.cm-md-image-broken': { color: muted, fontStyle: 'italic' },
+
+  '.cm-md-checkbox': {
+    display: 'inline-block',
+    width: '0.95em',
+    height: '0.95em',
+    marginRight: '0.4em',
+    verticalAlign: '-0.1em',
+    border: '1px solid var(--vscode-descriptionForeground)',
+    borderRadius: '3px',
+    cursor: 'pointer',
+    boxSizing: 'border-box',
+    textAlign: 'center',
+    lineHeight: '0.9em',
+    fontSize: '0.85em',
+  },
+  '.cm-md-checkbox-checked': {
+    backgroundColor: 'var(--vscode-textLink-foreground)',
+    borderColor: 'var(--vscode-textLink-foreground)',
+    color: 'var(--vscode-editor-background)',
+  },
+  '.cm-md-checkbox-checked::after': { content: '"\u2713"' },
+
   '.cm-line.cm-md-codeblock': {
     fontFamily: codeFont,
     fontSize: '0.92em',

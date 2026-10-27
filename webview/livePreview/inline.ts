@@ -3,7 +3,6 @@
 
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState, Range } from '@codemirror/state';
-import type { SyntaxNode } from '@lezer/common';
 import {
   Decoration,
   type DecorationSet,
@@ -12,6 +11,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { findFrontMatter } from './frontMatter';
 import { isTouched } from './reveal';
 
 export type InlineItem =
@@ -40,11 +40,18 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
   const touched = (node: { from: number; to: number }) => isTouched(selection, node.from, node.to);
   const text = (a: number, b: number) => doc.sliceString(a, b);
 
-  const eachLine = (node: SyntaxNode, className: string) => {
+  const eachLine = (node: { from: number; to: number }, className: string) => {
     for (let n = doc.lineAt(node.from).number; n <= doc.lineAt(node.to).number; n++) {
       items.push({ type: 'line', pos: doc.line(n).from, className });
     }
   };
+
+  // Front matter is plain source: its closing `---` would otherwise make it a heading.
+  const frontMatter = findFrontMatter(doc);
+  if (frontMatter) {
+    eachLine(frontMatter, 'cm-md-frontmatter-source');
+  }
+  const skipUntil = frontMatter?.to ?? -1;
 
   syntaxTree(state).iterate({
     from,
@@ -52,6 +59,7 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
     enter: (ref) => {
       const node = ref.node;
       const name = node.name;
+      if (node.to <= skipUntil) return false;
 
       const heading = HEADING.exec(name);
       if (heading) {

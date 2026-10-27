@@ -169,6 +169,19 @@ describe('inline live preview', () => {
     });
   });
 
+  describe('front matter', () => {
+    it('is plain source: not a heading, with no symbols hidden', () => {
+      const r = analyze('---\ntitle: **x**\n---\n\n|');
+      expect(r.hidden).toEqual([]);
+      expect(r.marks).toEqual([]);
+      expect(r.lines).toEqual([
+        [1, 'cm-md-frontmatter-source'],
+        [2, 'cm-md-frontmatter-source'],
+        [3, 'cm-md-frontmatter-source'],
+      ]);
+    });
+  });
+
   it('never hides anything when every node is touched by the cursor', () => {
     // Selecting everything reveals all symbols: the text is shown exactly as written.
     const all = '|# H\n\n**b** [l](u) `c` ~~s~~\n\n> q\n\n- i|';

@@ -11,6 +11,7 @@ const parent = document.getElementById('editor') as HTMLElement;
 
 const sync = new WebviewSync((message) => vscode.postMessage(message));
 let view: EditorView | undefined;
+let baseUri = '';
 
 /** Replaces the editor's text with the host's, changing only the part that differs. */
 function setText(view: EditorView, text: string): void {
@@ -21,6 +22,7 @@ function setText(view: EditorView, text: string): void {
 }
 
 function applySettings(settings: EditorSettings): void {
+  baseUri = settings.baseUri;
   const root = document.documentElement.style;
   if (settings.proseFontFamily) {
     root.setProperty('--md-prose-font', settings.proseFontFamily);
@@ -43,6 +45,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       parent,
       doc: normalizeLineEndings(message.text),
       nonce,
+      baseUri,
       onLocalChange: (changes, startDoc) => sync.localChange(changes, startDoc),
       onHistory: (command) => vscode.postMessage({ type: command }),
       onOpenLink: (href) => vscode.postMessage({ type: 'openLink', href }),
