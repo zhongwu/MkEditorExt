@@ -2,7 +2,7 @@
 // Uses only @codemirror/state, so it runs in unit tests without a DOM.
 
 import type { ChangeSet, Text } from '@codemirror/state';
-import type { HostMessage, LinePosition, TextChange, WebviewMessage } from '../src/protocol';
+import type { LinePosition, SyncHostMessage, SyncMessage, TextChange } from '../src/protocol';
 
 export function toLinePosition(doc: Text, pos: number): LinePosition {
   const line = doc.lineAt(pos);
@@ -64,14 +64,14 @@ export class WebviewSync {
   /** An outside change replaced the text while our edit was in flight. */
   private replacedDuringFlight = false;
 
-  constructor(private readonly post: (message: WebviewMessage) => void) {}
+  constructor(private readonly post: (message: SyncMessage) => void) {}
 
   /**
    * Handles a message from the host. `setText` must replace the editor's text with the given
    * text (line endings already normalized) as a remote change. Returns true if the webview
    * needs a full resync, which it gets by sending `ready` again.
    */
-  receive(message: HostMessage, setText: (text: string) => void): boolean {
+  receive(message: SyncHostMessage, setText: (text: string) => void): boolean {
     switch (message.type) {
       case 'init':
         setText(normalizeLineEndings(message.text));

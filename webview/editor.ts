@@ -19,6 +19,9 @@ import {
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { tags } from '@lezer/highlight';
+import { inlinePreview } from './livePreview/inline';
+import { linkAt } from './livePreview/links';
+import { livePreviewTheme } from './livePreview/theme';
 
 /** Marks transactions that apply the host's text, so they aren't sent back as edits. */
 export const remoteChange = Annotation.define<boolean>();
@@ -30,10 +33,11 @@ export interface EditorOptions {
   nonce: string;
   onLocalChange(changes: ChangeSet, startDoc: Text): void;
   onHistory(command: 'undo' | 'redo'): void;
+  onOpenLink(href: string): void;
 }
 
 // Colors come from the VS Code theme, so light, dark and high-contrast all work.
-// Phase 2 replaces this with the live-preview styling.
+// Prose uses `mdEditor.proseFontFamily` (set as --md-prose-font) or VS Code's UI font.
 const theme = EditorView.theme({
   '&': {
     height: '100%',
@@ -42,7 +46,10 @@ const theme = EditorView.theme({
     fontSize: 'var(--vscode-editor-font-size)',
   },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'var(--vscode-editor-font-family)', lineHeight: '1.6' },
+  '.cm-scroller': {
+    fontFamily: 'var(--md-prose-font, var(--vscode-font-family))',
+    lineHeight: '1.6',
+  },
   '.cm-content': { padding: '16px 0', caretColor: 'var(--vscode-editorCursor-foreground)' },
   '.cm-line': { padding: '0 24px' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--vscode-editorCursor-foreground)' },
@@ -58,14 +65,9 @@ const theme = EditorView.theme({
 });
 
 const highlightStyle = HighlightStyle.define([
-  { tag: tags.heading, fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)' },
-  { tag: tags.strong, fontWeight: 'bold' },
-  { tag: tags.emphasis, fontStyle: 'italic' },
-  { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.link, color: 'var(--vscode-textLink-foreground)' },
+  // Headings, emphasis, links and quotes are styled by the live preview (livePreview/theme.ts).
   { tag: tags.url, color: 'var(--vscode-textLink-activeForeground)' },
   { tag: tags.monospace, color: 'var(--vscode-textPreformat-foreground)' },
-  { tag: tags.quote, fontStyle: 'italic', color: 'var(--vscode-descriptionForeground)' },
   {
     tag: [tags.processingInstruction, tags.meta, tags.contentSeparator],
     color: 'var(--vscode-descriptionForeground)',
@@ -104,10 +106,27 @@ export function createEditor(options: EditorOptions): EditorView {
         keymap.of([...defaultKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(highlightStyle),
+        inlinePreview,
         EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ 'aria-label': 'Markdown source' }),
+        EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),
         theme,
+        livePreviewTheme,
         EditorView.domEventHandlers({
+          // Ctrl+click (Cmd+click on macOS) opens a link, as in VS Code's own editor.
+          // A plain click only places the cursor, so link text stays easy to edit.
+          mousedown(event, view) {
+            if (event.button !== 0 || !(event.ctrlKey || event.metaKey)) {
+              return false;
+            }
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            const href = pos === null ? undefined : linkAt(view.state, pos);
+            if (!href) {
+              return false;
+            }
+            event.preventDefault();
+            options.onOpenLink(href);
+            return true;
+          },
           // Fallback if the browser's own undo reaches the editor (e.g. from a context menu):
           // never let it change the text directly; ask VS Code instead.
           beforeinput(event) {

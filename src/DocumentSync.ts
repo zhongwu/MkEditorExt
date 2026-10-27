@@ -1,7 +1,7 @@
 // Keeps one webview in step with one TextDocument (PLAN.md §3.4).
 // It has no dependency on the `vscode` module so it can be unit-tested with fakes.
 
-import type { HostMessage, TextChange, WebviewMessage } from './protocol';
+import type { SyncHostMessage, SyncMessage, TextChange } from './protocol';
 
 /** The parts of `vscode.TextDocument` that DocumentSync needs. */
 export interface SyncDocument {
@@ -13,7 +13,7 @@ export interface SyncDocument {
 export interface SyncHost {
   /** Applies all changes as one edit. Resolves to false if VS Code refused it. */
   applyEdit(changes: readonly TextChange[]): PromiseLike<boolean>;
-  post(message: HostMessage): void;
+  post(message: SyncHostMessage): void;
   executeCommand(command: 'undo' | 'redo'): void;
 }
 
@@ -37,7 +37,7 @@ export class DocumentSync {
   ) {}
 
   /** Handles a message from the webview. Returns a promise that settles once it has been handled. */
-  handleMessage(message: WebviewMessage): Promise<void> {
+  handleMessage(message: SyncMessage): Promise<void> {
     switch (message.type) {
       case 'ready':
         this.host.post({

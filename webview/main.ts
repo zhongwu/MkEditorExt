@@ -1,5 +1,5 @@
 import type { EditorView } from '@codemirror/view';
-import type { HostMessage } from '../src/protocol';
+import type { EditorSettings, HostMessage } from '../src/protocol';
 import { createEditor, remoteChange } from './editor';
 import { WebviewSync, minimalChange, normalizeLineEndings } from './sync';
 import './styles/editor.css';
@@ -20,8 +20,21 @@ function setText(view: EditorView, text: string): void {
   }
 }
 
+function applySettings(settings: EditorSettings): void {
+  const root = document.documentElement.style;
+  if (settings.proseFontFamily) {
+    root.setProperty('--md-prose-font', settings.proseFontFamily);
+  } else {
+    root.removeProperty('--md-prose-font');
+  }
+}
+
 window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   const message = event.data;
+  if (message.type === 'settings') {
+    applySettings(message.settings);
+    return;
+  }
   if (!view) {
     if (message.type !== 'init') {
       return;
@@ -32,6 +45,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       nonce,
       onLocalChange: (changes, startDoc) => sync.localChange(changes, startDoc),
       onHistory: (command) => vscode.postMessage({ type: command }),
+      onOpenLink: (href) => vscode.postMessage({ type: 'openLink', href }),
     });
     sync.reset(message.version);
     view.focus();

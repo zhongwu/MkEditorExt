@@ -28,7 +28,7 @@ A `CustomTextEditorProvider` whose webview runs CodeMirror 6. VS Code's `TextDoc
 - Notion-style block editing (drag handles, slash menus that restructure the document).
 - Real-time collaborative editing beyond what Live Share already gives through `TextDocument`.
 - PDF export.
-- MDX rendering, or Markdown dialects beyond CommonMark + GitHub-style extensions + math.
+- MDX rendering, or Markdown dialects beyond CommonMark + GitHub-style extensions, math and the diagram/footnote/alert syntax listed in Phase 3.
 - A rendered view inside diff editors; diffs keep opening as text.
 - Niche features (e.g. `[[wiki links]]`, backlinks, docs-site admonitions). Choose one after v1, based on who actually uses it.
 
@@ -78,7 +78,7 @@ Webview → host:
 | `ready` | Sent once the webview has loaded. |
 | `edit` | `{ id, baseVersion, changes: [{ range: { start: {line, character}, end: {line, character} }, text }] }` |
 | `undo` / `redo` | — |
-| `openLink` | `{ href }`. The host opens it with `vscode.open` or the external browser. |
+| `openLink` | `{ href }`. The host opens http/https/mailto links in the browser and relative file links in VS Code, and refuses other schemes (`command:`, `file:` …). |
 | `pasteImage` | `{ name, bytes, insertAt }`, added in Phase 4. |
 | `setMode` | `{ mode }`, so the host can remember it per workspace. |
 
@@ -86,10 +86,10 @@ Host → webview:
 
 | Message | Contents |
 |---|---|
-| `init` | `{ text, version, baseUri, settings, mode }`, sent in reply to `ready`, including after the webview is recreated. |
+| `init` | `{ text, version, baseUri, mode }`, sent in reply to `ready`, including after the webview is recreated. |
 | `ack` | `{ id, version }`: edit `id` was applied and the document is now at this version. |
 | `replace` | `{ text, version, id? }`: with `id`, edit `id` was rejected; without `id`, the document changed from outside. |
-| `settings` | Sent on `onDidChangeConfiguration`. |
+| `settings` | `{ settings }`, sent just before `init` and again on `onDidChangeConfiguration`. Kept separate from the sync messages so `DocumentSync` only deals with text. |
 
 Every `edit` gets exactly one answer: an `ack` or a `replace` carrying its `id`. Without ids, an outside change that arrives while an edit is in flight can be mistaken for the answer to that edit. If an `ack` arrives for an edit whose text was already overwritten by an outside `replace`, the webview sends `ready` again to get the full text.
 
@@ -213,7 +213,7 @@ MdEditorExt/
 ### Phase 0: Setup and checking the competition (1 day)
 - [x] Generate the starting project with `yo code`, or set it up by hand with esbuild, ESLint, Prettier and Vitest.
 - [x] Add `launch.json` so F5 opens an Extension Development Host for testing.
-- [ ] Add CI with a GitHub Actions matrix (Windows, macOS, Linux) that runs lint, unit tests and integration tests. *(Workflow written in `.github/workflows/ci.yml`; tick once it has passed on GitHub.)*
+- [x] Add CI with a GitHub Actions matrix (Windows, macOS, Linux) that runs lint, unit tests and integration tests.
 - [ ] **Check the differentiator:**
   1. Collect 5–10 real Markdown files in `test/corpus/`: READMEs, docs with tables, a file with `\r\n` line endings, and a file mixing `*` / `_` and `-` / `*` styles.
   2. Open each one in VS Code's built-in Markdown Editor and in one or two Marketplace WYSIWYG extensions.
@@ -235,11 +235,12 @@ MdEditorExt/
 - [ ] **Done when:** you can open a `.md` file, type, save, undo and redo with VS Code's history, see outside changes appear (e.g. `git checkout`), and edit a `\r\n` file without corrupting it.
 
 ### Phase 2: Live preview, inline (3–4 days)
-- [ ] Build `reveal.ts` and `inline.ts` (§3.5): headings, bold, italic, strikethrough, inline code, links, blockquotes and list bullets, with symbols hidden away from the cursor.
-- [ ] Theme it with VS Code's colors (`--vscode-*` CSS variables) and fonts (`editor.fontFamily`, `editor.fontSize`, with a separate setting for the prose font). Test light, dark and high-contrast themes.
-- [ ] Apply the design rules: no line-height change on reveal; reveal only the node under the cursor.
-- [ ] Ctrl/Cmd+click on links sends `openLink`.
-- [ ] **Unit tests:** for a given text and cursor position, which ranges are hidden and which are styled.
+- [x] Build `reveal.ts` and `inline.ts` (§3.5): headings, bold, italic, strikethrough, inline code, links, blockquotes and list bullets, with symbols hidden away from the cursor.
+- [x] Theme it with VS Code's colors (`--vscode-*` CSS variables) and fonts (`editor.fontFamily`, `editor.fontSize`, with a separate setting for the prose font: `mdEditor.proseFontFamily`).
+  - [ ] Manual check in light, dark and high-contrast themes. *(Dark checked with a test page that loads the real bundle; light and high contrast still to do.)*
+- [x] Apply the design rules: no line-height change on reveal; reveal only the node under the cursor.
+- [x] Ctrl/Cmd+click on links sends `openLink`. Inline, reference, auto and bare links are found (`webview/livePreview/links.ts`); the host decides what may be opened (`src/links.ts`).
+- [x] **Unit tests:** for a given text and cursor position, which ranges are hidden and which are styled.
 - [ ] **Done when:** writing a normal document feels like a rendered page, and moving the cursor never makes the text jump vertically.
 
 ### Phase 3: Live preview, blocks (4–5 days)
@@ -254,6 +255,9 @@ MdEditorExt/
 - [ ] Add the math parser extension and KaTeX widgets for inline and block math.
 - [ ] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7).
 - [ ] Raw HTML blocks: source by default; a setting renders them through DOMPurify.
+- [ ] Math also in ```math fences (as GitHub does), alongside `$…$` and `$$…$$`.
+- [ ] GitHub-style alerts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]` …) drawn as callouts, and footnotes (`[^1]`) with hover preview.
+- [ ] Other fenced diagram blocks, each loaded only when used: Graphviz/DOT, PlantUML (needs a server or WASM build, so decide when reached) and Vega-Lite charts. Add one at a time, after Mermaid and KaTeX work.
 - [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
 
 ### Phase 4: Editing helpers and modes (3 days)

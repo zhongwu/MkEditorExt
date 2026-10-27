@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ChangeSet, EditorState, type ChangeSpec } from '@codemirror/state';
 import { DocumentSync } from '../../src/DocumentSync';
-import type { HostMessage, WebviewMessage } from '../../src/protocol';
+import type {
+  SyncHostMessage as HostMessage,
+  SyncMessage as WebviewMessage,
+} from '../../src/protocol';
 import {
   WebviewSync,
   minimalChange,

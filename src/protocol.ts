@@ -16,20 +16,34 @@ export interface TextChange {
   text: string;
 }
 
-export type WebviewMessage =
+/** Messages handled by DocumentSync. */
+export type SyncMessage =
   | { type: 'ready' }
   | { type: 'edit'; id: number; baseVersion: number; changes: TextChange[] }
   | { type: 'undo' }
   | { type: 'redo' };
 
+export type WebviewMessage = SyncMessage | { type: 'openLink'; href: string };
+
+/** Settings the webview needs, from the `mdEditor.*` configuration. */
+export interface EditorSettings {
+  /** CSS font-family for prose; empty means VS Code's UI font. */
+  proseFontFamily: string;
+}
+
 /**
  * Every `edit` is answered by exactly one `ack` or one `replace` carrying its `id`.
  * A `replace` without an `id` reports a change made outside the webview.
  */
-export type HostMessage =
+export type SyncHostMessage =
   | { type: 'init'; text: string; version: number }
   | { type: 'ack'; id: number; version: number }
   | { type: 'replace'; text: string; version: number; id?: number };
+
+export type HostMessage = SyncHostMessage | { type: 'settings'; settings: EditorSettings };
+
+/** Longest link target the host will try to open. */
+const MAX_HREF_LENGTH = 2048;
 
 function isPosition(value: unknown): value is LinePosition {
   const p = value as LinePosition;
@@ -74,6 +88,8 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
         Array.isArray(m.changes) &&
         m.changes.every(isTextChange)
       );
+    case 'openLink':
+      return typeof m.href === 'string' && m.href.length <= MAX_HREF_LENGTH;
     default:
       return false;
   }
