@@ -66,7 +66,7 @@ A `CustomTextEditorProvider` whose webview runs CodeMirror 6. VS Code's `TextDoc
 ### 3.1 Who owns what
 
 - **The file's text:** `TextDocument` is the only source of truth. CodeMirror is a view of it.
-- **Undo/redo:** CodeMirror's history is turned off. The webview's keymap catches `Mod-z`, `Mod-y` and `Mod-Shift-z`, prevents the default and posts `undo` / `redo`. The host runs VS Code's `undo` / `redo` commands, and the result comes back to the webview as an outside change (§3.4). Undo history therefore survives the webview being hidden and recreated. **Check this first in the Phase 1 spike:** confirm that the commands act on the custom editor's document while the webview has focus.
+- **Undo/redo:** CodeMirror's history is turned off and nothing in the webview binds `Mod-z` / `Mod-y`. VS Code's webview wrapper already blocks the browser's own undo for these keys and passes them to the workbench, which runs `undo` / `redo` on the custom editor's document. The result comes back to the webview as an outside change (§3.4), so undo history survives the webview being hidden and recreated. As a fallback, a `beforeinput` event of type `historyUndo` / `historyRedo` (e.g. from a context menu) is blocked and sent to the host as `undo` / `redo`, which runs the VS Code commands. **Phase 1 spike:** the command path is covered by an integration test; the keyboard path needs the manual check listed in Phase 1.
 - **Cursor, selection, scroll position and mode:** owned by the webview, saved with `getState` / `setState`. The chosen mode is also remembered per workspace by the host.
 
 ### 3.2 Messages
@@ -76,7 +76,7 @@ Webview → host:
 | Message | Contents |
 |---|---|
 | `ready` | Sent once the webview has loaded. |
-| `edit` | `{ baseVersion, changes: [{ range: { start: {line, character}, end: {line, character} }, text }] }` |
+| `edit` | `{ id, baseVersion, changes: [{ range: { start: {line, character}, end: {line, character} }, text }] }` |
 | `undo` / `redo` | — |
 | `openLink` | `{ href }`. The host opens it with `vscode.open` or the external browser. |
 | `pasteImage` | `{ name, bytes, insertAt }`, added in Phase 4. |
@@ -87,9 +87,11 @@ Host → webview:
 | Message | Contents |
 |---|---|
 | `init` | `{ text, version, baseUri, settings, mode }`, sent in reply to `ready`, including after the webview is recreated. |
-| `ack` | `{ version }`: your edit was applied and the document is now at this version. |
-| `replace` | `{ text, version }`: the document changed from outside, or your edit was rejected. |
+| `ack` | `{ id, version }`: edit `id` was applied and the document is now at this version. |
+| `replace` | `{ text, version, id? }`: with `id`, edit `id` was rejected; without `id`, the document changed from outside. |
 | `settings` | Sent on `onDidChangeConfiguration`. |
+
+Every `edit` gets exactly one answer: an `ack` or a `replace` carrying its `id`. Without ids, an outside change that arrives while an edit is in flight can be mistaken for the answer to that edit. If an `ack` arrives for an edit whose text was already overwritten by an outside `replace`, the webview sends `ready` again to get the full text.
 
 ### 3.3 Positions and line endings
 
@@ -209,86 +211,89 @@ MdEditorExt/
 ## 5. Phases
 
 ### Phase 0: Setup and checking the competition (1 day)
-- Generate the starting project with `yo code`, or set it up by hand with esbuild, ESLint, Prettier and Vitest.
-- Add `launch.json` so F5 opens an Extension Development Host for testing.
-- Add CI with a GitHub Actions matrix (Windows, macOS, Linux) that runs lint, unit tests and integration tests.
-- **Check the differentiator:**
+- [x] Generate the starting project with `yo code`, or set it up by hand with esbuild, ESLint, Prettier and Vitest.
+- [x] Add `launch.json` so F5 opens an Extension Development Host for testing.
+- [ ] Add CI with a GitHub Actions matrix (Windows, macOS, Linux) that runs lint, unit tests and integration tests. *(Workflow written in `.github/workflows/ci.yml`; tick once it has passed on GitHub.)*
+- [ ] **Check the differentiator:**
   1. Collect 5–10 real Markdown files in `test/corpus/`: READMEs, docs with tables, a file with `\r\n` line endings, and a file mixing `*` / `_` and `-` / `*` styles.
   2. Open each one in VS Code's built-in Markdown Editor and in one or two Marketplace WYSIWYG extensions.
   3. Change one word, save, and look at `git diff`.
   4. If they already keep diffs minimal, revisit §1 before going further.
 
 ### Phase 1: Editor core and sync (4–5 days)
-- **Spike first (half a day):** confirm that the `undo` / `redo` commands sent from the webview act on the custom editor's document (§3.1), and that CodeMirror works under the CSP (§3.7). If undo doesn't work this way, rethink it before building anything else.
-- Register `mdEditor.editor` for `*.md` and `*.markdown` with `priority: "option"`, so it appears under "Open With…" and doesn't replace the default editor.
-- Set up CodeMirror (no history extension) with the Markdown language and syntax highlighting. This is Source mode.
-- Build `DocumentSync` and `webview/sync.ts` as described in §3.2–3.4.
-- **Unit tests in this phase:**
+- [ ] **Spike first (half a day):** confirm that the `undo` / `redo` commands sent from the webview act on the custom editor's document (§3.1), and that CodeMirror works under the CSP (§3.7). If undo doesn't work this way, rethink it before building anything else.
+  - [x] VS Code's `undo` / `redo` commands act on the document while the custom editor is active (integration test `test/integration/customEditor.test.ts`).
+  - [ ] Manual check (F5): Ctrl+Z / Ctrl+Y typed inside the editor undo and redo, and CodeMirror's styles load with no CSP errors in the webview developer tools.
+- [x] Register `mdEditor.editor` for `*.md` and `*.markdown` with `priority: "option"`, so it appears under "Open With…" and doesn't replace the default editor.
+- [x] Set up CodeMirror (no history extension) with the Markdown language and syntax highlighting. This is Source mode.
+- [x] Build `DocumentSync` and `webview/sync.ts` as described in §3.2–3.4.
+- [x] **Unit tests in this phase:**
   - `DocumentSync` with a fake document: own edit → `ack`; outside change → `replace`; stale `baseVersion` → rejected; `applyEdit` fails → `replace`.
   - Position conversion on `\r\n` and `\n` files.
   - Composing pending changes.
-- **Done when:** you can open a `.md` file, type, save, undo and redo with VS Code's history, see outside changes appear (e.g. `git checkout`), and edit a `\r\n` file without corrupting it.
+  - A randomized simulation of both halves with outside changes mixed in, checking that both sides always end with the same text (50 seeds).
+- [ ] **Done when:** you can open a `.md` file, type, save, undo and redo with VS Code's history, see outside changes appear (e.g. `git checkout`), and edit a `\r\n` file without corrupting it.
 
 ### Phase 2: Live preview, inline (3–4 days)
-- Build `reveal.ts` and `inline.ts` (§3.5): headings, bold, italic, strikethrough, inline code, links, blockquotes and list bullets, with symbols hidden away from the cursor.
-- Theme it with VS Code's colors (`--vscode-*` CSS variables) and fonts (`editor.fontFamily`, `editor.fontSize`, with a separate setting for the prose font). Test light, dark and high-contrast themes.
-- Apply the design rules: no line-height change on reveal; reveal only the node under the cursor.
-- Ctrl/Cmd+click on links sends `openLink`.
-- **Unit tests:** for a given text and cursor position, which ranges are hidden and which are styled.
-- **Done when:** writing a normal document feels like a rendered page, and moving the cursor never makes the text jump vertically.
+- [ ] Build `reveal.ts` and `inline.ts` (§3.5): headings, bold, italic, strikethrough, inline code, links, blockquotes and list bullets, with symbols hidden away from the cursor.
+- [ ] Theme it with VS Code's colors (`--vscode-*` CSS variables) and fonts (`editor.fontFamily`, `editor.fontSize`, with a separate setting for the prose font). Test light, dark and high-contrast themes.
+- [ ] Apply the design rules: no line-height change on reveal; reveal only the node under the cursor.
+- [ ] Ctrl/Cmd+click on links sends `openLink`.
+- [ ] **Unit tests:** for a given text and cursor position, which ranges are hidden and which are styled.
+- [ ] **Done when:** writing a normal document feels like a rendered page, and moving the cursor never makes the text jump vertically.
 
 ### Phase 3: Live preview, blocks (4–5 days)
-- Build `blocks.ts` as a `StateField` with atomic ranges (§3.5).
-- Add widgets for:
+- [ ] Build `blocks.ts` as a `StateField` with atomic ranges (§3.5).
+- [ ] Add widgets for:
   - images (relative paths resolved through `baseUri`)
   - task checkboxes (one-character toggle)
   - tables (rendered when the cursor is outside)
   - horizontal rules
   - front matter
-- Highlight code blocks in place with nested languages, loaded on demand.
-- Add the math parser extension and KaTeX widgets for inline and block math.
-- Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7).
-- Raw HTML blocks: source by default; a setting renders them through DOMPurify.
-- **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
+- [ ] Highlight code blocks in place with nested languages, loaded on demand.
+- [ ] Add the math parser extension and KaTeX widgets for inline and block math.
+- [ ] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7).
+- [ ] Raw HTML blocks: source by default; a setting renders them through DOMPurify.
+- [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
 
 ### Phase 4: Editing helpers and modes (3 days)
-- **Toolbar and shortcuts:** bold, italic, heading, link, code, list, quote, table. Each follows the minimal-edit rule (§3.6).
-- **Lists:** pressing Enter continues a list or task list (`insertNewlineContinueMarkup` from `@codemirror/lang-markdown`); Backspace on an empty item removes it.
-- **Paste a URL over selected text** to turn it into a link.
-- **Paste or drag in images:**
+- [ ] **Toolbar and shortcuts:** bold, italic, heading, link, code, list, quote, table. Each follows the minimal-edit rule (§3.6).
+- [ ] **Lists:** pressing Enter continues a list or task list (`insertNewlineContinueMarkup` from `@codemirror/lang-markdown`); Backspace on an empty item removes it.
+- [ ] **Paste a URL over selected text** to turn it into a link.
+- [ ] **Paste or drag in images:**
   1. The webview reads the bytes and sends `pasteImage`.
   2. The host writes the file under `./assets/` with `workspace.fs`.
   3. The link is inserted through a normal `edit`.
-- **Modes:** Live, Source and Reading (§3.5), switched by a toolbar button and the `mdEditor.setMode` command, and remembered per workspace.
-- **Outline:** check whether VS Code's Outline view works while the custom editor is active. If it doesn't, add a simple heading list that jumps to a heading.
-- **Accessibility:**
+- [ ] **Modes:** Live, Source and Reading (§3.5), switched by a toolbar button and the `mdEditor.setMode` command, and remembered per workspace.
+- [ ] **Outline:** check whether VS Code's Outline view works while the custom editor is active. If it doesn't, add a simple heading list that jumps to a heading.
+- [ ] **Accessibility:**
   - Toolbar buttons have `aria-label`s and can be reached with the keyboard.
   - Widgets have text alternatives (image alt text, a table summary, the math source).
   - Switching to Source mode is one shortcut away; document it as the screen-reader mode.
 
 ### Phase 5: Extras (2–3 days, pick what you want)
-- **Table editing inside the widget:** typing in a cell edits only that cell's text (§3.6). Tab moves to the next cell.
-- **Export to HTML** with markdown-it and DOMPurify, as a standalone file with the CSS inlined.
-- **Settings:** prose font, custom CSS for the editor, default mode, render raw HTML on/off.
+- [ ] **Table editing inside the widget:** typing in a cell edits only that cell's text (§3.6). Tab moves to the next cell.
+- [ ] **Export to HTML** with markdown-it and DOMPurify, as a standalone file with the CSS inlined.
+- [ ] **Settings:** prose font, custom CSS for the editor, default mode, render raw HTML on/off.
 
 ### Phase 6: Speed and reliability (2–3 days)
-- Test with files over 5 MB and over 10,000 lines. Inline decorations cover only the visible part. If the block widgets' state field gets slow on large files, only update the blocks a change touches.
-- **IME input** (Chinese, Japanese, Korean): decorations must not change during an IME composition, or the text being composed gets disrupted. Hold back reveal/hide updates while composing, and test with real IMEs on Windows and macOS.
-- Handle the webview being hidden and shown again without `retainContextWhenHidden`: on `ready` the host sends `init` again, and the cursor, selection, scroll position and mode come back from `getState`. Undo history is unaffected because VS Code owns it.
-- Check that it works when the same file is open in two editors (two `DocumentSync`s, each sees the other's edits as outside changes), and when the file is on a remote, WSL or virtual file system.
-- If web support is wanted: run the extension on vscode.dev using `@vscode/test-web`.
+- [ ] Test with files over 5 MB and over 10,000 lines. Inline decorations cover only the visible part. If the block widgets' state field gets slow on large files, only update the blocks a change touches.
+- [ ] **IME input** (Chinese, Japanese, Korean): decorations must not change during an IME composition, or the text being composed gets disrupted. Hold back reveal/hide updates while composing, and test with real IMEs on Windows and macOS.
+- [ ] Handle the webview being hidden and shown again without `retainContextWhenHidden`: on `ready` the host sends `init` again, and the cursor, selection, scroll position and mode come back from `getState`. Undo history is unaffected because VS Code owns it.
+- [ ] Check that it works when the same file is open in two editors (two `DocumentSync`s, each sees the other's edits as outside changes), and when the file is on a remote, WSL or virtual file system.
+- [ ] If web support is wanted: run the extension on vscode.dev using `@vscode/test-web`.
 
 ### Phase 7: Testing and release (2–3 days)
-- **Minimal-diff tests (the main promise, §3.6):** for every command and widget action, run it on each file in `test/corpus/` and check that only the expected lines changed. Also: open, type, undo all, save → the file is byte-for-byte unchanged.
-- **Unit tests:** anything not already covered (block widget ranges, commands, math parser extension).
-- **Host integration tests (`@vscode/test-electron`):**
+- [ ] **Minimal-diff tests (the main promise, §3.6):** for every command and widget action, run it on each file in `test/corpus/` and check that only the expected lines changed. Also: open, type, undo all, save → the file is byte-for-byte unchanged.
+- [ ] **Unit tests:** anything not already covered (block widget ranges, commands, math parser extension).
+- [ ] **Host integration tests (`@vscode/test-electron`):**
   1. Open a file with the custom editor.
   2. Drive `DocumentSync` with fake webview messages.
   3. Check `document.getText()`, then save, undo and redo.
-- **End-to-end tests (`vscode-extension-tester`, a few only):** type into the webview, check that symbols hide and reveal, toggle a checkbox, undo with Ctrl+Z, and edit a `\r\n` file.
-- **Manual checklist:** all three themes, non-ASCII text and emoji (characters that take two UTF-16 units), IME input, very long lines, an empty file, a read-only file, and screen-reader basics in Source mode.
-- Write the README with GIFs. Lead with the minimal-diff promise and show a side-by-side `git diff` from Phase 0. Add a CHANGELOG, a 128×128 icon and Marketplace keywords.
-- Publish with `vsce package` and `vsce publish`, then with `ovsx publish` (this needs an Open VSX namespace).
+- [ ] **End-to-end tests (`vscode-extension-tester`, a few only):** type into the webview, check that symbols hide and reveal, toggle a checkbox, undo with Ctrl+Z, and edit a `\r\n` file.
+- [ ] **Manual checklist:** all three themes, non-ASCII text and emoji (characters that take two UTF-16 units), IME input, very long lines, an empty file, a read-only file, and screen-reader basics in Source mode.
+- [ ] Write the README with GIFs. Lead with the minimal-diff promise and show a side-by-side `git diff` from Phase 0. Add a CHANGELOG, a 128×128 icon and Marketplace keywords.
+- [ ] Publish with `vsce package` and `vsce publish`, then with `ovsx publish` (this needs an Open VSX namespace).
 
 **Total for one developer: about 5 weeks.**
 

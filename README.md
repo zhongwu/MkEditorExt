@@ -47,4 +47,23 @@ Once released, open any `.md` file, right-click its tab, choose **Reopen Editor 
 
 ## Development
 
-Not set up yet. Phase 0 will add the build (TypeScript + esbuild), tests (Vitest, `@vscode/test-electron`) and CI, and this section will explain how to build and run the extension locally.
+Requires Node.js 22 or later.
+
+```sh
+npm install
+npm run build              # bundle the extension and webview into dist/
+npm run watch              # rebuild on change
+npm test                   # unit tests (Vitest)
+npm run test:integration   # integration tests in a downloaded copy of VS Code
+npm run lint               # ESLint
+npm run typecheck          # TypeScript
+```
+
+To try it, open this folder in VS Code and press **F5**. In the new window, open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Live Editor**.
+
+| Folder | Contents |
+|---|---|
+| `src/` | Extension host: the custom editor provider and the host side of the sync |
+| `webview/` | The editor inside the webview: CodeMirror setup and the webview side of the sync |
+| `test/unit/` | Unit tests, including a randomized simulation of the sync |
+| `test/integration/` | Tests that run inside VS Code |

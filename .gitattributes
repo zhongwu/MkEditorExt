@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Test files that must keep Windows line endings exactly as written.
+test/corpus/*crlf* -text
