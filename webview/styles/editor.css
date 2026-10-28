@@ -35,6 +35,13 @@ body {
   gap: 2px;
 }
 
+.md-toolbar-separator {
+  width: 1px;
+  height: 16px;
+  background-color: var(--vscode-editorWidget-border, var(--vscode-panel-border, currentColor));
+  opacity: 0.8;
+}
+
 .md-toolbar-modes {
   margin-left: auto;
 }

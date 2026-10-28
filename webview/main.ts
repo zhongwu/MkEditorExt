@@ -25,6 +25,7 @@ const toolbar = createToolbar(document.getElementById('toolbar') as HTMLElement,
       view.focus();
     }
   },
+  exportAs: (format) => vscode.postMessage({ type: 'export', format }),
   setMode: (mode) => {
     changeMode(mode);
     vscode.postMessage({ type: 'setMode', mode });

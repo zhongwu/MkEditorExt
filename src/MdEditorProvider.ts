@@ -202,6 +202,11 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           this.diagramRequests.delete(message.id);
           return;
         }
+        if (message.type === 'export') {
+          const command = message.format === 'pdf' ? 'mdEditor.exportPdf' : 'mdEditor.exportHtml';
+          void vscode.commands.executeCommand(command);
+          return;
+        }
         if (message.type === 'chooseImage') {
           void editor.chooseImage();
           return;

@@ -23,6 +23,11 @@ export type Mode = 'live' | 'source' | 'reading';
 
 export const MODES: readonly Mode[] = ['live', 'source', 'reading'];
 
+/** The file formats Export can make. */
+export type ExportFormat = 'html' | 'pdf';
+
+export const EXPORT_FORMATS: readonly ExportFormat[] = ['html', 'pdf'];
+
 /** Messages handled by DocumentSync. */
 export type SyncMessage =
   | { type: 'ready' }
@@ -37,6 +42,7 @@ export type WebviewMessage =
   /** An image from the clipboard or a drop; `data` is its bytes in base64. */
   /** Ask the host to let the user pick an image file to insert. */
   | { type: 'chooseImage' }
+  | { type: 'export'; format: ExportFormat }
   /** The diagrams drawn for `drawDiagrams` `id`, as SVG, in order; null where one failed. */
   | { type: 'diagrams'; id: number; svgs: (string | null)[] }
   | { type: 'pasteImage'; id: number; name: string; mime: string; data: string };
@@ -137,6 +143,8 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
           (svg) => svg === null || (typeof svg === 'string' && svg.length <= MAX_SVG_LENGTH),
         )
       );
+    case 'export':
+      return EXPORT_FORMATS.includes(m.format);
     case 'setMode':
       return MODES.includes(m.mode);
     case 'pasteImage':

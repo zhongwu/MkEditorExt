@@ -32,6 +32,15 @@ describe('isWebviewMessage', () => {
   });
 });
 
+describe('export message', () => {
+  it('accepts the known formats only', () => {
+    expect(isWebviewMessage({ type: 'export', format: 'html' })).toBe(true);
+    expect(isWebviewMessage({ type: 'export', format: 'pdf' })).toBe(true);
+    expect(isWebviewMessage({ type: 'export', format: 'docx' })).toBe(false);
+    expect(isWebviewMessage({ type: 'export' })).toBe(false);
+  });
+});
+
 describe('setMode message', () => {
   it('accepts the three modes and nothing else', () => {
     for (const mode of ['live', 'source', 'reading']) {

@@ -28,6 +28,7 @@ This extension edits the file's text directly and draws the rendered look over i
 - Works with VS Code's own save, undo/redo, unsaved-changes marker, Git and Live Share.
 - Follows your VS Code theme (light, dark and high contrast) and fonts.
 - Export to HTML: one standalone page with images and math embedded.
+- Export buttons (HTML, PDF) in the toolbar.
 - Export to PDF with the Chrome or Edge you already have installed (`mdEditor.browserPath` if it is somewhere unusual).
 - Edit table cells right in the rendered table; Tab moves to the next cell.
 - Your own CSS for the editor (`mdEditor.customCss`).
