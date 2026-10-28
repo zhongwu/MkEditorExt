@@ -31,6 +31,8 @@ export interface EditorSettings {
   proseFontFamily: string;
   /** The document's folder as a webview URI, for resolving relative image paths. */
   baseUri: string;
+  /** Draw raw HTML blocks, sanitized, instead of showing their source. */
+  renderHtml: boolean;
 }
 
 /**

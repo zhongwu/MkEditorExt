@@ -1,4 +1,4 @@
-import { Annotation, EditorState, type ChangeSet, type Text } from '@codemirror/state';
+import { Annotation, Compartment, EditorState, type ChangeSet, type Text } from '@codemirror/state';
 import {
   EditorView,
   crosshairCursor,
@@ -16,11 +16,11 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from '@codemirror/language';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { languages } from '@codemirror/language-data';
 import { tags } from '@lezer/highlight';
-import { blockPreview } from './livePreview/blocks';
+import { blockPreview, renderHtmlFacet } from './livePreview/blocks';
+import { footnoteExtension } from './livePreview/footnotes';
 import { inlinePreview } from './livePreview/inline';
+import { lazyMarkdown } from './livePreview/languages';
 import { linkAt } from './livePreview/links';
 import { mathExtension } from './livePreview/math';
 import { livePreviewTheme } from './livePreview/theme';
@@ -35,6 +35,8 @@ export interface EditorOptions {
   nonce: string;
   /** The document's folder as a webview URI; relative image paths resolve against it. */
   baseUri: string;
+  /** Draw raw HTML blocks (sanitized) instead of showing their source. */
+  renderHtml: boolean;
   onLocalChange(changes: ChangeSet, startDoc: Text): void;
   onHistory(command: 'undo' | 'redo'): void;
   onOpenLink(href: string): void;
@@ -88,8 +90,16 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.typeName, color: 'var(--vscode-symbolIcon-classForeground)' },
 ]);
 
+const htmlCompartment = new Compartment();
+
+/** Turns drawing of raw HTML blocks on or off in a running editor. */
+export function setRenderHtml(view: EditorView, enabled: boolean): void {
+  view.dispatch({ effects: htmlCompartment.reconfigure(renderHtmlFacet.of(enabled)) });
+}
+
 export function createEditor(options: EditorOptions): EditorView {
-  return new EditorView({
+  const markdownSupport = lazyMarkdown([mathExtension, footnoteExtension]);
+  const view = new EditorView({
     parent: options.parent,
     state: EditorState.create({
       doc: options.doc,
@@ -108,10 +118,11 @@ export function createEditor(options: EditorOptions): EditorView {
         // VS Code's webview wrapper forwards Ctrl+Z / Ctrl+Y to the workbench, which undoes
         // the document; the result arrives as a `replace`.
         keymap.of([...defaultKeymap, indentWithTab]),
-        markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [mathExtension] }),
+        markdownSupport.extension,
         syntaxHighlighting(highlightStyle),
         inlinePreview,
         blockPreview(options.baseUri),
+        htmlCompartment.of(renderHtmlFacet.of(options.renderHtml)),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),
         theme,
@@ -153,4 +164,6 @@ export function createEditor(options: EditorOptions): EditorView {
       ],
     }),
   });
+  markdownSupport.attach(view);
+  return view;
 }

@@ -1,5 +1,8 @@
-// Loads KaTeX and Mermaid only when a document uses them (PLAN.md §2). Each is a separate bundle
-// (dist/katex.js, dist/mermaid.js) added to the page as a <script> with the page's CSP nonce.
+// Loads KaTeX, Mermaid and the code language definitions only when a document needs them
+// (PLAN.md §2). Each is a separate bundle in dist/, added to the page as a <script> with the
+// page's CSP nonce.
+
+import type { LanguageDescription } from '@codemirror/language';
 
 export interface KatexApi {
   render(tex: string, element: HTMLElement, options?: Record<string, unknown>): void;
@@ -10,8 +13,13 @@ export interface MermaidApi {
   initialize(config: Record<string, unknown>): void;
 }
 
+/** The packages the main bundle shares with dist/languages.js (see esbuild.mjs). */
+export type SharedModules = Record<string, unknown>;
+
 declare global {
   interface Window {
+    mdShared?: SharedModules;
+    mdLanguages?: readonly LanguageDescription[];
     mdKatex?: KatexApi;
     mdMermaid?: MermaidApi;
   }
@@ -71,6 +79,12 @@ export async function loadKatex(): Promise<KatexApi> {
   await Promise.all([loadScript('katex.js'), loadStyle('katex.css')]);
   if (!window.mdKatex) throw new Error('KaTeX did not start');
   return window.mdKatex;
+}
+
+export async function loadLanguages(): Promise<readonly LanguageDescription[]> {
+  await loadScript('languages.js');
+  if (!window.mdLanguages) throw new Error('Language definitions did not start');
+  return window.mdLanguages;
 }
 
 export async function loadMermaid(): Promise<MermaidApi> {

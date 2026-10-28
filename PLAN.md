@@ -130,7 +130,7 @@ Everything below is a CodeMirror decoration or widget over unchanged text. **Not
 - **Task checkboxes:** clicking one toggles `[ ]` ↔ `[x]` with a one-character edit.
 - **Tables, math blocks, Mermaid diagrams, horizontal rules:** shown rendered while the cursor is outside the block; moving the cursor into the block shows its source.
 - **Front matter:** shown as a bordered summary of its `key: value` lines. Clicking it or moving the cursor in shows the YAML source as plain monospace text.
-- **Raw HTML blocks:** shown as source by default. A setting renders them through DOMPurify.
+- **Raw HTML blocks:** shown as source by default. The `mdEditor.renderHtml` setting draws them after sanitizing with DOMPurify (no scripts, styles, forms or frames; links never navigate; images resolve like Markdown images).
 - Widgets are not in `EditorView.atomicRanges`: CodeMirror already skips a replaced range with the arrow keys, and the cursor reaching its edge counts as touching it (see `reveal.ts`), so the source appears. Clicking a widget puts the cursor in its source.
 
 **Design rules:**
@@ -251,13 +251,13 @@ MdEditorExt/
   - [x] tables (rendered when the cursor is outside)
   - [x] horizontal rules
   - [x] front matter
-- [ ] Highlight code blocks in place with nested languages, loaded on demand.
+- [x] Highlight code blocks in place with nested languages, loaded on demand (`dist/languages.js`, about 1.2 MB, loaded when a fence names a language). It shares CodeMirror and Lezer with the main bundle through `window.mdShared`; a second copy would break `instanceof` checks and highlighting tags. The main bundle is now about 0.6 MB. The opening and closing fence lines are hidden (thin strips) while the cursor is outside the block, and shown while it is inside or at its edges; `mermaid` and `math` fences are left to their widgets.
 - [x] Add the math parser extension (`webview/livePreview/math.ts`) and KaTeX widgets for inline and block math. Loaded on demand.
 - [x] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7). Loaded on demand; the production bundle is about 5 MB, only loaded for files with diagrams.
-- [ ] Raw HTML blocks: source by default; a setting renders them through DOMPurify.
+- [x] Raw HTML blocks: source by default; the `mdEditor.renderHtml` setting renders them through DOMPurify.
 - [x] Math also in ```math fences (as GitHub does), alongside `$…$` and `$$…$$`.
-- [ ] GitHub-style alerts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]` …) drawn as callouts, and footnotes (`[^1]`) with hover preview.
-- [ ] Other fenced diagram blocks, each loaded only when used: Graphviz/DOT, PlantUML (needs a server or WASM build, so decide when reached) and Vega-Lite charts. Add one at a time, after Mermaid and KaTeX work.
+- [x] GitHub-style alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) drawn as colored callouts, and footnotes (`[^1]`) as superscripts with the definition as a hover tooltip.
+- [ ] Other fenced diagram blocks, each loaded only when used: Graphviz/DOT (needs `wasm-unsafe-eval` in the CSP), Vega-Lite charts (large; needs the CSP-safe expression interpreter) and PlantUML (needs a server, so diagram text would leave the machine: not planned). Add one at a time, only if wanted.
 - [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
 
 ### Phase 4: Editing helpers and modes (3 days)

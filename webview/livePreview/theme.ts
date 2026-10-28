@@ -36,7 +36,7 @@ export const livePreviewTheme = EditorView.theme({
     paddingLeft: '40px',
     // A bar in the left padding, drawn as a background so it costs no width.
     backgroundImage:
-      'linear-gradient(to right, transparent 24px, var(--vscode-textBlockQuote-border) 24px, var(--vscode-textBlockQuote-border) 27px, transparent 27px)',
+      'linear-gradient(to right, transparent 24px, var(--md-quote-bar, var(--vscode-textBlockQuote-border)) 24px, var(--md-quote-bar, var(--vscode-textBlockQuote-border)) 27px, transparent 27px)',
   },
   '.cm-md-bullet, .cm-md-listmark': { color: muted },
 
@@ -53,6 +53,26 @@ export const livePreviewTheme = EditorView.theme({
   },
   '.cm-md-mermaid-done svg': { maxWidth: '100%', height: 'auto' },
   '.cm-md-mermaid-error': { color: 'var(--vscode-errorForeground)', textAlign: 'left' },
+
+  '.cm-md-alert': { '--md-quote-bar': 'var(--md-alert-color)' },
+  '.cm-md-alert-note': { '--md-alert-color': 'var(--vscode-textLink-foreground)' },
+  '.cm-md-alert-tip': { '--md-alert-color': 'var(--vscode-testing-iconPassed, #3fb950)' },
+  '.cm-md-alert-important': { '--md-alert-color': 'var(--vscode-charts-purple, #a371f7)' },
+  '.cm-md-alert-warning': { '--md-alert-color': 'var(--vscode-editorWarning-foreground)' },
+  '.cm-md-alert-caution': { '--md-alert-color': 'var(--vscode-editorError-foreground)' },
+  '.cm-md-alert-title': { color: 'var(--md-alert-color)', fontWeight: '600' },
+
+  '.cm-md-footnote-ref': {
+    fontSize: '0.75em',
+    verticalAlign: 'super',
+    lineHeight: '0',
+    color: 'var(--vscode-textLink-foreground)',
+    cursor: 'help',
+  },
+  '.cm-md-footnote-label': { color: muted, fontSize: '0.85em' },
+
+  '.cm-md-html': { margin: '0.4em 24px' },
+  '.cm-md-html img': { maxWidth: '100%' },
 
   '.cm-md-hr': {
     margin: '0.6em 24px',
@@ -111,6 +131,10 @@ export const livePreviewTheme = EditorView.theme({
   },
   '.cm-md-checkbox-checked::after': { content: '"\u2713"' },
 
+  '.cm-line.cm-md-fence-hidden': {
+    lineHeight: '0.5',
+    overflow: 'hidden',
+  },
   '.cm-line.cm-md-codeblock': {
     fontFamily: codeFont,
     fontSize: '0.92em',

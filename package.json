@@ -67,6 +67,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Font for text in the editor (CSS `font-family`). Leave empty to use VS Code's UI font. Code always uses `#editor.fontFamily#`."
+        },
+        "mdEditor.renderHtml": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Draw raw HTML blocks in Markdown files (after removing scripts, styles, forms and links that navigate). When off, HTML blocks are shown as source."
         }
       }
     }
@@ -93,6 +98,7 @@
     "@eslint/js": "^10.0.1",
     "@lezer/common": "^1.5.4",
     "@lezer/highlight": "^1.2.5",
+    "@lezer/lr": "^1.4.11",
     "@lezer/markdown": "^1.8.1",
     "@types/katex": "^0.16.8",
     "@types/mocha": "^10.0.10",
@@ -100,6 +106,7 @@
     "@types/vscode": "~1.74.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "dompurify": "^3.4.17",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "katex": "^0.19.1",

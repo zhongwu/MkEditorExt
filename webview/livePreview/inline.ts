@@ -3,6 +3,7 @@
 
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState, Range } from '@codemirror/state';
+import type { SyntaxNode } from '@lezer/common';
 import {
   Decoration,
   type DecorationSet,
@@ -11,6 +12,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { footnoteDefinitions, type FootnoteDefinition } from './footnotes';
 import { findFrontMatter } from './frontMatter';
 import { isTouched } from './reveal';
 
@@ -18,13 +20,35 @@ export type InlineItem =
   /** Text hidden from view (the Markdown symbols). */
   | { type: 'hide'; from: number; to: number }
   /** A styled range, e.g. bold text. */
-  | { type: 'mark'; from: number; to: number; className: string }
+  | { type: 'mark'; from: number; to: number; className: string; title?: string }
+  /** The `[!NOTE]` line of a GitHub alert, drawn as a title. */
+  | { type: 'alert'; from: number; to: number; kind: string }
   /** A class for a whole line, e.g. a heading. Always applied, so line heights never change. */
   | { type: 'line'; pos: number; className: string }
   /** A bullet list marker drawn as a bullet. */
   | { type: 'bullet'; from: number; to: number };
 
 const HEADING = /^(ATX|Setext)Heading([1-6])$/;
+const ALERT = /^(\s*>\s*)\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i;
+const ALERT_TITLES: Record<string, string> = {
+  note: 'Note',
+  tip: 'Tip',
+  important: 'Important',
+  warning: 'Warning',
+  caution: 'Caution',
+};
+const NOT_FOOTNOTE_DEFINITION = new Set(['FencedCode', 'CodeBlock', 'HTMLBlock', 'CommentBlock']);
+
+const preview = (text: string) => (text.length > 300 ? `${text.slice(0, 300)}…` : text);
+
+/** True if `pos` is inside a code or HTML block, where Markdown syntax doesn't apply. */
+function inCodeBlock(state: EditorState, pos: number): boolean {
+  let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1);
+  for (; node; node = node.parent) {
+    if (NOT_FOOTNOTE_DEFINITION.has(node.name)) return true;
+  }
+  return false;
+}
 
 const INLINE_STYLES: Record<string, { className: string; marks: string }> = {
   Emphasis: { className: 'cm-md-em', marks: 'EmphasisMark' },
@@ -52,6 +76,14 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
     eachLine(frontMatter, 'cm-md-frontmatter-source');
   }
   const skipUntil = frontMatter?.to ?? -1;
+  // math and mermaid fences are drawn by blocks.ts; their fences go with the widget.
+  const isDrawnBlock = (node: SyntaxNode) => {
+    const info = node.getChild('CodeInfo');
+    const language = info ? text(info.from, info.to).trim().toLowerCase() : '';
+    return language === 'math' || language === 'mermaid';
+  };
+  // Read lazily: only documents with footnote references need every definition.
+  let definitions: Map<string, FootnoteDefinition> | undefined;
 
   syntaxTree(state).iterate({
     from,
@@ -110,6 +142,8 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
           const marks = node.getChildren('LinkMark');
           if (marks.length < 2) return;
           const [open, close] = marks;
+          // `[^1]: …` is a footnote definition, styled by its label below, not a link.
+          if (text(open.to, open.to + 1) === '^') return false;
           items.push({ type: 'mark', from: open.to, to: close.from, className: 'cm-md-link' });
           if (!touched(node)) {
             items.push({ type: 'hide', from: open.from, to: open.to });
@@ -136,9 +170,45 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
             items.push({ type: 'mark', from: node.from, to: node.to, className: 'cm-md-link' });
           }
           return;
-        case 'Blockquote':
+        case 'Blockquote': {
           eachLine(node, 'cm-md-quote');
+          // GitHub alerts: a quote whose first line is only "[!NOTE]", "[!TIP]" and so on.
+          const first = doc.lineAt(node.from);
+          const alert = ALERT.exec(first.text);
+          if (alert) {
+            const kind = alert[2].toLowerCase();
+            eachLine(node, `cm-md-alert cm-md-alert-${kind}`);
+            if (!isTouched(selection, first.from, first.to)) {
+              const from = first.from + alert[1].length;
+              items.push({
+                type: 'alert',
+                from,
+                to: first.from + first.text.trimEnd().length,
+                kind,
+              });
+            }
+          }
           return;
+        }
+        case 'FootnoteRef': {
+          const [open, close] = node.getChildren('FootnoteMark');
+          if (!open || !close) return false;
+          definitions ??= footnoteDefinitions(doc);
+          const label = text(open.to, close.from);
+          const note = definitions.get(label)?.text;
+          items.push({
+            type: 'mark',
+            from: open.to,
+            to: close.from,
+            className: 'cm-md-footnote-ref',
+            title: note ? preview(note) : 'No definition found for this footnote',
+          });
+          if (!touched(node)) {
+            items.push({ type: 'hide', from: open.from, to: open.to });
+            items.push({ type: 'hide', from: close.from, to: close.to });
+          }
+          return false;
+        }
         case 'QuoteMark': {
           // Quote symbols are per line, so they are shown while the cursor is on that line.
           const line = doc.lineAt(node.from);
@@ -171,6 +241,14 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
         case 'CodeBlock':
           // Code keeps its own highlighting; Markdown inside it is not styled.
           eachLine(node, 'cm-md-codeblock');
+          if (name === 'FencedCode' && !touched(node) && !isDrawnBlock(node)) {
+            // The opening and closing fence lines are hidden while the cursor is elsewhere.
+            for (const mark of node.getChildren('CodeMark')) {
+              const line = doc.lineAt(mark.from);
+              items.push({ type: 'line', pos: line.from, className: 'cm-md-fence-hidden' });
+              items.push({ type: 'hide', from: line.from, to: line.to });
+            }
+          }
           return false;
         case 'Image':
           // Rendered as a widget in Phase 3.
@@ -180,7 +258,34 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
     },
   });
 
+  // "[^1]:" at the start of a definition line.
+  for (const definition of footnoteDefinitions(doc, from, to).values()) {
+    if (!inCodeBlock(state, definition.from)) {
+      items.push({
+        type: 'mark',
+        from: definition.from,
+        to: definition.to,
+        className: 'cm-md-footnote-label',
+      });
+    }
+  }
+
   return items;
+}
+
+class AlertTitleWidget extends WidgetType {
+  constructor(readonly kind: string) {
+    super();
+  }
+  eq(other: AlertTitleWidget): boolean {
+    return other.kind === this.kind;
+  }
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-md-alert-title';
+    span.textContent = ALERT_TITLES[this.kind] ?? this.kind;
+    return span;
+  }
 }
 
 class BulletWidget extends WidgetType {
@@ -205,14 +310,16 @@ function openLinkHint(): string {
   return isMac ? 'Cmd+click to open' : 'Ctrl+click to open';
 }
 
-function markDecoration(className: string): Decoration {
-  let deco = markCache.get(className);
+function markDecoration(className: string, title?: string): Decoration {
+  const key = `${className}\n${title ?? ''}`;
+  let deco = markCache.get(key);
   if (!deco) {
+    const tooltip = title ?? (className === 'cm-md-link' ? openLinkHint() : undefined);
     deco = Decoration.mark({
       class: className,
-      attributes: className === 'cm-md-link' ? { title: openLinkHint() } : undefined,
+      attributes: tooltip ? { title: tooltip } : undefined,
     });
-    markCache.set(className, deco);
+    markCache.set(key, deco);
   }
   return deco;
 }
@@ -242,7 +349,12 @@ export function toDecorations(items: readonly InlineItem[]): DecorationSet {
         break;
       case 'mark':
         if (item.to > item.from)
-          ranges.push(markDecoration(item.className).range(item.from, item.to));
+          ranges.push(markDecoration(item.className, item.title).range(item.from, item.to));
+        break;
+      case 'alert':
+        ranges.push(
+          Decoration.replace({ widget: new AlertTitleWidget(item.kind) }).range(item.from, item.to),
+        );
         break;
       case 'line':
         ranges.push(lineDecoration(item.className).range(item.pos));

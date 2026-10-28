@@ -40,13 +40,50 @@ const builds = [
 // are written next to katex.js; only the woff2 fonts are needed.
 builds.push({
   ...common,
-  entryPoints: { katex: 'webview/lazy/katex.ts', mermaid: 'webview/lazy/mermaid.ts' },
+  entryPoints: {
+    katex: 'webview/lazy/katex.ts',
+    mermaid: 'webview/lazy/mermaid.ts',
+  },
   outdir: 'dist',
   platform: 'browser',
   format: 'iife',
   target: 'es2022',
   loader: { '.woff2': 'file', '.woff': 'empty', '.ttf': 'empty' },
   assetNames: 'fonts/[name]',
+});
+
+// The code language definitions build on CodeMirror and Lezer. A second copy of those packages
+// would not recognise the first copy's objects (instanceof, syntax-highlighting tags), so this
+// bundle takes them from the main bundle, which publishes them as window.mdShared
+// (webview/livePreview/shared.ts).
+const SHARED = [
+  '@codemirror/state',
+  '@codemirror/view',
+  '@codemirror/language',
+  '@lezer/common',
+  '@lezer/highlight',
+  '@lezer/lr',
+  '@lezer/markdown',
+];
+const sharedModules = {
+  name: 'shared-modules',
+  setup(build) {
+    const filter = new RegExp(`^(${SHARED.join('|').replaceAll('/', '\\/')})$`);
+    build.onResolve({ filter }, (args) => ({ path: args.path, namespace: 'shared' }));
+    build.onLoad({ filter: /.*/, namespace: 'shared' }, (args) => ({
+      contents: `module.exports = window.mdShared[${JSON.stringify(args.path)}];`,
+      loader: 'js',
+    }));
+  },
+};
+builds.push({
+  ...common,
+  entryPoints: { languages: 'webview/lazy/languages.ts' },
+  outdir: 'dist',
+  platform: 'browser',
+  format: 'iife',
+  target: 'es2022',
+  plugins: [sharedModules],
 });
 
 if (tests) {

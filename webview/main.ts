@@ -1,7 +1,8 @@
 import type { EditorView } from '@codemirror/view';
 import type { EditorSettings, HostMessage } from '../src/protocol';
-import { createEditor, remoteChange } from './editor';
+import { createEditor, remoteChange, setRenderHtml } from './editor';
 import { configureAssets } from './livePreview/lazy';
+import './livePreview/shared';
 import { WebviewSync, minimalChange, normalizeLineEndings } from './sync';
 import './styles/editor.css';
 
@@ -18,6 +19,7 @@ configureAssets({
 const sync = new WebviewSync((message) => vscode.postMessage(message));
 let view: EditorView | undefined;
 let baseUri = '';
+let renderHtml = false;
 
 /** Replaces the editor's text with the host's, changing only the part that differs. */
 function setText(view: EditorView, text: string): void {
@@ -29,6 +31,10 @@ function setText(view: EditorView, text: string): void {
 
 function applySettings(settings: EditorSettings): void {
   baseUri = settings.baseUri;
+  if (view && renderHtml !== settings.renderHtml) {
+    setRenderHtml(view, settings.renderHtml);
+  }
+  renderHtml = settings.renderHtml;
   const root = document.documentElement.style;
   if (settings.proseFontFamily) {
     root.setProperty('--md-prose-font', settings.proseFontFamily);
@@ -52,6 +58,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       doc: normalizeLineEndings(message.text),
       nonce,
       baseUri,
+      renderHtml,
       onLocalChange: (changes, startDoc) => sync.localChange(changes, startDoc),
       onHistory: (command) => vscode.postMessage({ type: command }),
       onOpenLink: (href) => vscode.postMessage({ type: 'openLink', href }),

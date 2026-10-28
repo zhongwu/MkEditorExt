@@ -108,6 +108,7 @@ function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): Edit
   return {
     proseFontFamily: config.get<string>('proseFontFamily', ''),
     baseUri: webview.asWebviewUri(documentFolder).toString(),
+    renderHtml: config.get<boolean>('renderHtml', false),
   };
 }
 

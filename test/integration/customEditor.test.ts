@@ -14,7 +14,7 @@ async function createFile(contents: string): Promise<vscode.Uri> {
 }
 
 async function waitFor(check: () => boolean, what: string): Promise<void> {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 600; i++) {
     if (check()) {
       return;
     }

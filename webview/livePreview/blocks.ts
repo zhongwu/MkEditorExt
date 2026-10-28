@@ -6,10 +6,11 @@
 // turns that into decorations. Block decorations must come from a state field, not a view plugin.
 
 import { syntaxTree } from '@codemirror/language';
-import { EditorState, StateField, type Range, type Text } from '@codemirror/state';
+import { EditorState, Facet, StateField, type Range, type Text } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import { findFrontMatter } from './frontMatter';
+import { HtmlWidget } from './htmlWidget';
 import { resolveImageSrc } from './images';
 import { MathWidget, MermaidWidget } from './renderWidgets';
 import { isTouched } from './reveal';
@@ -38,7 +39,13 @@ export type BlockItem =
   /** `offset`: where the `[ ]` character to toggle sits, counted from `from`. */
   | { type: 'checkbox'; from: number; to: number; checked: boolean; offset: number }
   | { type: 'math'; from: number; to: number; tex: string; display: boolean }
-  | { type: 'mermaid'; from: number; to: number; source: string };
+  | { type: 'mermaid'; from: number; to: number; source: string }
+  | { type: 'html'; from: number; to: number; html: string };
+
+/** Whether raw HTML blocks are drawn (the `mdEditor.renderHtml` setting). Off by default. */
+export const renderHtmlFacet = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
 
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark', 'LinkMark']);
 
@@ -135,6 +142,7 @@ export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] 
     items.push({ type: 'frontMatter', ...frontMatter });
   }
   const skipUntil = frontMatter?.to ?? -1;
+  const renderHtml = state.facet(renderHtmlFacet);
 
   syntaxTree(state).iterate({
     enter: (ref) => {
@@ -173,6 +181,16 @@ export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] 
           }
           return false;
         }
+        case 'HTMLBlock':
+          if (renderHtml && topLevel && !touched(node.from, node.to)) {
+            items.push({
+              type: 'html',
+              from: node.from,
+              to: node.to,
+              html: doc.sliceString(node.from, node.to),
+            });
+          }
+          return false;
         case 'InlineMath': {
           const [open, close] = node.getChildren('MathMark');
           if (open && close && !touched(node.from, node.to)) {
@@ -228,7 +246,7 @@ export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] 
   return items;
 }
 
-export function toBlockDecorations(items: readonly BlockItem[]): DecorationSet {
+export function toBlockDecorations(items: readonly BlockItem[], baseUri: string): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   for (const item of items) {
     switch (item.type) {
@@ -270,6 +288,14 @@ export function toBlockDecorations(items: readonly BlockItem[]): DecorationSet {
           }).range(item.from, item.to),
         );
         break;
+      case 'html':
+        ranges.push(
+          Decoration.replace({ widget: new HtmlWidget(item.html, baseUri), block: true }).range(
+            item.from,
+            item.to,
+          ),
+        );
+        break;
       case 'mermaid':
         ranges.push(
           Decoration.replace({ widget: new MermaidWidget(item.source), block: true }).range(
@@ -293,11 +319,16 @@ export function toBlockDecorations(items: readonly BlockItem[]): DecorationSet {
 
 /** The block live preview. `baseUri` is the document's folder as a webview URI, for images. */
 export function blockPreview(baseUri: string) {
-  const build = (state: EditorState) => toBlockDecorations(collectBlocks(state, baseUri));
+  const build = (state: EditorState) => toBlockDecorations(collectBlocks(state, baseUri), baseUri);
   return StateField.define<DecorationSet>({
     create: build,
     update(value, tr) {
-      if (tr.docChanged || tr.selection || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+      if (
+        tr.docChanged ||
+        tr.selection ||
+        syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
+        tr.startState.facet(renderHtmlFacet) !== tr.state.facet(renderHtmlFacet)
+      ) {
         return build(tr.state);
       }
       return value;

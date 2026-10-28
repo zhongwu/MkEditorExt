@@ -158,7 +158,7 @@ describe('inline live preview', () => {
 
   describe('code blocks', () => {
     it('marks every line and does not style Markdown inside', () => {
-      const r = analyze('```\n**not bold**\n```\n\n|');
+      const r = analyze('```\n**not| bold**\n```\n');
       expect(r.hidden).toEqual([]);
       expect(r.marks).toEqual([]);
       expect(r.lines).toEqual([
