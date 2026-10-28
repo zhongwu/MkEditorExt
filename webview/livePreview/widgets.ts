@@ -151,6 +151,7 @@ export class CheckboxWidget extends WidgetType {
     box.addEventListener('mousedown', (event) => {
       // A one-character edit: [ ] <-> [x]. Nothing else in the line changes (PLAN.md §3.6).
       event.preventDefault();
+      if (view.state.readOnly) return;
       const pos = view.posAtDOM(box) + this.offset;
       view.dispatch({ changes: { from: pos, to: pos + 1, insert: this.checked ? ' ' : 'x' } });
     });

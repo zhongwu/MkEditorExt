@@ -16,6 +16,11 @@ export interface TextChange {
   text: string;
 }
 
+/** How the editor shows the document (PLAN.md §3.5). */
+export type Mode = 'live' | 'source' | 'reading';
+
+export const MODES: readonly Mode[] = ['live', 'source', 'reading'];
+
 /** Messages handled by DocumentSync. */
 export type SyncMessage =
   | { type: 'ready' }
@@ -23,7 +28,8 @@ export type SyncMessage =
   | { type: 'undo' }
   | { type: 'redo' };
 
-export type WebviewMessage = SyncMessage | { type: 'openLink'; href: string };
+export type WebviewMessage =
+  SyncMessage | { type: 'openLink'; href: string } | { type: 'setMode'; mode: Mode };
 
 /** Settings the webview needs, from the `mdEditor.*` configuration. */
 export interface EditorSettings {
@@ -44,7 +50,9 @@ export type SyncHostMessage =
   | { type: 'ack'; id: number; version: number }
   | { type: 'replace'; text: string; version: number; id?: number };
 
-export type HostMessage = SyncHostMessage | { type: 'settings'; settings: EditorSettings };
+/** `mode` is sent before `init`, and again when the `mdEditor.setMode` command changes it. */
+export type HostMessage =
+  SyncHostMessage | { type: 'settings'; settings: EditorSettings } | { type: 'mode'; mode: Mode };
 
 /** Longest link target the host will try to open. */
 const MAX_HREF_LENGTH = 2048;
@@ -94,6 +102,8 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
       );
     case 'openLink':
       return typeof m.href === 'string' && m.href.length <= MAX_HREF_LENGTH;
+    case 'setMode':
+      return MODES.includes(m.mode);
     default:
       return false;
   }

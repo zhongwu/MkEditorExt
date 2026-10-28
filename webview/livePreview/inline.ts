@@ -14,7 +14,7 @@ import {
 } from '@codemirror/view';
 import { footnoteDefinitions, type FootnoteDefinition } from './footnotes';
 import { findFrontMatter } from './frontMatter';
-import { isTouched } from './reveal';
+import { isTouched, readingFacet, revealSelection } from './reveal';
 
 export type InlineItem =
   /** Text hidden from view (the Markdown symbols). */
@@ -60,7 +60,8 @@ const INLINE_STYLES: Record<string, { className: string; marks: string }> = {
 /** Everything the inline live preview draws for the part of the document in [from, to]. */
 export function collectInline(state: EditorState, from: number, to: number): InlineItem[] {
   const items: InlineItem[] = [];
-  const { doc, selection } = state;
+  const { doc } = state;
+  const selection = revealSelection(state);
   const touched = (node: { from: number; to: number }) => isTouched(selection, node.from, node.to);
   const text = (a: number, b: number) => doc.sliceString(a, b);
 
@@ -386,6 +387,7 @@ export const inlinePreview = ViewPlugin.fromClass(
         update.docChanged ||
         update.viewportChanged ||
         update.selectionSet ||
+        update.startState.facet(readingFacet) !== update.state.facet(readingFacet) ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.decorations = build(update.view);

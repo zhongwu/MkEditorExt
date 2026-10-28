@@ -2,25 +2,69 @@ import * as vscode from 'vscode';
 import { DocumentSync } from './DocumentSync';
 import { classifyLink } from './links';
 import {
+  MODES,
   isWebviewMessage,
   type EditorSettings,
   type HostMessage,
+  type Mode,
   type TextChange,
 } from './protocol';
 import { getNonce } from './util/nonce';
 
+/** Where the last mode the user picked is remembered, per workspace. */
+const MODE_KEY = 'mdEditor.mode';
+
+/** One open editor: its panel and the mode it is showing. */
+interface OpenEditor {
+  panel: vscode.WebviewPanel;
+  post(message: HostMessage): void;
+  mode: Mode;
+}
+
 export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'mdEditor.editor';
 
-  static register(context: vscode.ExtensionContext): vscode.Disposable {
-    return vscode.window.registerCustomEditorProvider(
-      MdEditorProvider.viewType,
-      new MdEditorProvider(context.extensionUri),
-      { supportsMultipleEditorsPerDocument: true },
-    );
+  private readonly editors = new Set<OpenEditor>();
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly workspaceState: vscode.Memento,
+  ) {}
+
+  register(): vscode.Disposable {
+    return vscode.window.registerCustomEditorProvider(MdEditorProvider.viewType, this, {
+      supportsMultipleEditorsPerDocument: true,
+    });
   }
 
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  /** The mode of the editor that has focus, or undefined if none does. */
+  activeMode(): Mode | undefined {
+    return this.activeEditor()?.mode;
+  }
+
+  /** Switches the editor that has focus; returns false if there isn't one. */
+  setActiveMode(mode: Mode): boolean {
+    const editor = this.activeEditor();
+    if (!editor) {
+      return false;
+    }
+    editor.mode = mode;
+    void this.workspaceState.update(MODE_KEY, mode);
+    editor.post({ type: 'mode', mode });
+    return true;
+  }
+
+  private activeEditor(): OpenEditor | undefined {
+    return [...this.editors].find((editor) => editor.panel.active);
+  }
+
+  private initialMode(): Mode {
+    const remembered = this.workspaceState.get<Mode>(MODE_KEY);
+    if (remembered && MODES.includes(remembered)) {
+      return remembered;
+    }
+    return vscode.workspace.getConfiguration('mdEditor').get<Mode>('defaultMode', 'live');
+  }
 
   resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
     const webview = panel.webview;
@@ -44,9 +88,17 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
       executeCommand: (command) => void vscode.commands.executeCommand(command),
     });
 
+    const editor: OpenEditor = { panel, post, mode: this.initialMode() };
+    this.editors.add(editor);
+
     const subscriptions = [
       webview.onDidReceiveMessage((message: unknown) => {
         if (!isWebviewMessage(message)) {
+          return;
+        }
+        if (message.type === 'setMode') {
+          editor.mode = message.mode;
+          void this.workspaceState.update(MODE_KEY, message.mode);
           return;
         }
         if (message.type === 'openLink') {
@@ -54,6 +106,7 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         if (message.type === 'ready') {
+          post({ type: 'mode', mode: editor.mode });
           post({ type: 'settings', settings: readSettings(webview, documentFolder) });
         }
         void sync.handleMessage(message);
@@ -70,7 +123,10 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
         }
       }),
     ];
-    panel.onDidDispose(() => subscriptions.forEach((s) => s.dispose()));
+    panel.onDidDispose(() => {
+      this.editors.delete(editor);
+      subscriptions.forEach((s) => s.dispose());
+    });
   }
 
   private getHtml(webview: vscode.Webview, distUri: vscode.Uri): string {
@@ -96,6 +152,7 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   <title>Markdown Live Editor</title>
 </head>
 <body>
+  <div id="toolbar"></div>
   <div id="editor"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

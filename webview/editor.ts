@@ -10,6 +10,7 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
+import type { Mode } from '../src/protocol';
 import {
   HighlightStyle,
   bracketMatching,
@@ -17,13 +18,14 @@ import {
   syntaxHighlighting,
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { blockPreview, renderHtmlFacet } from './livePreview/blocks';
+import { formattingKeymap } from './commands';
+import { renderHtmlFacet } from './livePreview/blocks';
 import { footnoteExtension } from './livePreview/footnotes';
-import { inlinePreview } from './livePreview/inline';
 import { lazyMarkdown } from './livePreview/languages';
 import { linkAt } from './livePreview/links';
 import { mathExtension } from './livePreview/math';
 import { livePreviewTheme } from './livePreview/theme';
+import { modeExtensions } from './modes';
 
 /** Marks transactions that apply the host's text, so they aren't sent back as edits. */
 export const remoteChange = Annotation.define<boolean>();
@@ -37,6 +39,7 @@ export interface EditorOptions {
   baseUri: string;
   /** Draw raw HTML blocks (sanitized) instead of showing their source. */
   renderHtml: boolean;
+  mode: Mode;
   onLocalChange(changes: ChangeSet, startDoc: Text): void;
   onHistory(command: 'undo' | 'redo'): void;
   onOpenLink(href: string): void;
@@ -59,11 +62,16 @@ const theme = EditorView.theme({
   '.cm-content': { padding: '16px 0', caretColor: 'var(--vscode-editorCursor-foreground)' },
   '.cm-line': { padding: '0 24px' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--vscode-editorCursor-foreground)' },
+  // The selection is drawn above the text: behind it, the current-line and code-block
+  // backgrounds would cover it. It is translucent so the text stays readable.
+  '.cm-selectionLayer': { zIndex: '1 !important', pointerEvents: 'none' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
-    backgroundColor: 'var(--vscode-editor-selectionBackground)',
+    backgroundColor:
+      'color-mix(in srgb, var(--vscode-editor-selectionBackground) 60%, transparent)',
   },
   '.cm-selectionBackground': {
-    backgroundColor: 'var(--vscode-editor-inactiveSelectionBackground)',
+    backgroundColor:
+      'color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 70%, transparent)',
   },
   '.cm-activeLine': {
     backgroundColor: 'var(--vscode-editor-lineHighlightBackground, transparent)',
@@ -117,11 +125,10 @@ export function createEditor(options: EditorOptions): EditorView {
         // No history() and no history keymap: undo and redo belong to VS Code (PLAN.md §3.1).
         // VS Code's webview wrapper forwards Ctrl+Z / Ctrl+Y to the workbench, which undoes
         // the document; the result arrives as a `replace`.
-        keymap.of([...defaultKeymap, indentWithTab]),
+        keymap.of([...formattingKeymap, ...defaultKeymap, indentWithTab]),
         markdownSupport.extension,
         syntaxHighlighting(highlightStyle),
-        inlinePreview,
-        blockPreview(options.baseUri),
+        modeExtensions(options.mode, options.baseUri),
         htmlCompartment.of(renderHtmlFacet.of(options.renderHtml)),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),

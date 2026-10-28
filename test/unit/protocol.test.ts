@@ -31,3 +31,13 @@ describe('isWebviewMessage', () => {
     ).toBe(false);
   });
 });
+
+describe('setMode message', () => {
+  it('accepts the three modes and nothing else', () => {
+    for (const mode of ['live', 'source', 'reading']) {
+      expect(isWebviewMessage({ type: 'setMode', mode })).toBe(true);
+    }
+    expect(isWebviewMessage({ type: 'setMode', mode: 'edit' })).toBe(false);
+    expect(isWebviewMessage({ type: 'setMode' })).toBe(false);
+  });
+});

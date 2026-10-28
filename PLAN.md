@@ -261,17 +261,17 @@ MdEditorExt/
 - [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
 
 ### Phase 4: Editing helpers and modes (3 days)
-- [ ] **Toolbar and shortcuts:** bold, italic, heading, link, code, list, quote, table. Each follows the minimal-edit rule (§3.6).
-- [ ] **Lists:** pressing Enter continues a list or task list (`insertNewlineContinueMarkup` from `@codemirror/lang-markdown`); Backspace on an empty item removes it.
-- [ ] **Paste a URL over selected text** to turn it into a link.
+- [x] **Toolbar and shortcuts:** bold, italic, strikethrough, code, headings 1–3, bullet, numbered and task lists, quote, link, table (`webview/commands.ts`, `webview/toolbar.ts`). Each is a pure function from state to transaction that changes only the markers it adds or removes (§3.6). Shortcuts: Ctrl/Cmd+B, I, E, K, Shift+X, Alt+1–3, Shift+7/8/9.
+- [x] **Lists:** Enter continues a list or task list and Backspace on an empty item removes it. Both come from `markdown()` (its default keymap), and a unit test covers them. The first Enter on an empty second item starts a loose list; the next Enter ends the list. That is the package's behavior and is left as is.
+- [x] **Paste a URL over selected text** to turn it into a link. This also comes from `markdown()` (`pasteURLAsLink`).
 - [ ] **Paste or drag in images:**
   1. The webview reads the bytes and sends `pasteImage`.
   2. The host writes the file under `./assets/` with `workspace.fs`.
   3. The link is inserted through a normal `edit`.
-- [ ] **Modes:** Live, Source and Reading (§3.5), switched by a toolbar button and the `mdEditor.setMode` command, and remembered per workspace.
+- [x] **Modes:** Live, Source and Reading (§3.5), switched by the toolbar, the `mdEditor.setMode` command and `mdEditor.toggleSource` (Ctrl/Cmd+Alt+M). The last mode picked is remembered per workspace (`workspaceState`) and used for newly opened editors; `mdEditor.defaultMode` applies until one is picked. Source mode removes the preview extensions; Reading mode keeps them, makes the editor read-only and ignores the selection when deciding which symbols to show (`readingFacet` in `reveal.ts`).
 - [ ] **Outline:** check whether VS Code's Outline view works while the custom editor is active. If it doesn't, add a simple heading list that jumps to a heading.
 - [ ] **Accessibility:**
-  - Toolbar buttons have `aria-label`s and can be reached with the keyboard.
+  - [x] Toolbar buttons have `aria-label`s and can be reached with the keyboard.
   - Widgets have text alternatives (image alt text, a table summary, the math source).
   - Switching to Source mode is one shortcut away; document it as the screen-reader mode.
 

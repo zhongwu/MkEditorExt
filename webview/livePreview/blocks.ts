@@ -13,7 +13,7 @@ import { findFrontMatter } from './frontMatter';
 import { HtmlWidget } from './htmlWidget';
 import { resolveImageSrc } from './images';
 import { MathWidget, MermaidWidget } from './renderWidgets';
-import { isTouched } from './reveal';
+import { isTouched, readingFacet, revealSelection } from './reveal';
 import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget } from './widgets';
 
 /** A piece of inline text inside a table cell. */
@@ -134,7 +134,8 @@ function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
 /** Everything the block live preview draws, given the text, the tree and the selection. */
 export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] {
   const items: BlockItem[] = [];
-  const { doc, selection } = state;
+  const { doc } = state;
+  const selection = revealSelection(state);
   const touched = (from: number, to: number) => isTouched(selection, from, to);
 
   const frontMatter = findFrontMatter(doc);
@@ -327,7 +328,8 @@ export function blockPreview(baseUri: string) {
         tr.docChanged ||
         tr.selection ||
         syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
-        tr.startState.facet(renderHtmlFacet) !== tr.state.facet(renderHtmlFacet)
+        tr.startState.facet(renderHtmlFacet) !== tr.state.facet(renderHtmlFacet) ||
+        tr.startState.facet(readingFacet) !== tr.state.facet(readingFacet)
       ) {
         return build(tr.state);
       }

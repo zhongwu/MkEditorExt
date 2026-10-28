@@ -7,6 +7,65 @@ body {
   background-color: var(--vscode-editor-background);
 }
 
+body {
+  display: flex;
+  flex-direction: column;
+}
+
 #editor {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 12px;
+  border-bottom: 1px solid
+    var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent));
+  background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+.md-toolbar-group {
+  display: flex;
+  gap: 2px;
+}
+
+.md-toolbar-modes {
+  margin-left: auto;
+}
+
+#toolbar button {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+#toolbar button:hover:not(:disabled) {
+  background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+#toolbar button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+#toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#toolbar button[aria-pressed='true'] {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
 }
