@@ -37,6 +37,8 @@ export type WebviewMessage =
   /** An image from the clipboard or a drop; `data` is its bytes in base64. */
   /** Ask the host to let the user pick an image file to insert. */
   | { type: 'chooseImage' }
+  /** The diagrams drawn for `drawDiagrams` `id`, as SVG, in order; null where one failed. */
+  | { type: 'diagrams'; id: number; svgs: (string | null)[] }
   | { type: 'pasteImage'; id: number; name: string; mime: string; data: string };
 
 /** Settings the webview needs, from the `mdEditor.*` configuration. */
@@ -47,6 +49,8 @@ export interface EditorSettings {
   baseUri: string;
   /** Draw raw HTML blocks, sanitized, instead of showing their source. */
   renderHtml: boolean;
+  /** The user's own CSS for the editor; empty for none. */
+  customCss: string;
 }
 
 /**
@@ -66,7 +70,13 @@ export type HostMessage =
   /** The image sent as `pasteImage` `id` was saved at `path`, relative to the document. */
   | { type: 'imageSaved'; id: number; path: string; alt?: string }
   /** Put the cursor at the start of this line and scroll it into view. */
-  | { type: 'revealLine'; line: number };
+  | { type: 'revealLine'; line: number }
+  /** Draw these Mermaid sources and answer with `diagrams` (for Export to HTML). */
+  | { type: 'drawDiagrams'; id: number; sources: string[] };
+
+/** Most diagrams one export asks for, and the longest SVG accepted for each. */
+export const MAX_DIAGRAMS = 200;
+const MAX_SVG_LENGTH = 2_000_000;
 
 /** Longest link target the host will try to open. */
 const MAX_HREF_LENGTH = 2048;
@@ -118,6 +128,15 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
       return typeof m.href === 'string' && m.href.length <= MAX_HREF_LENGTH;
     case 'chooseImage':
       return true;
+    case 'diagrams':
+      return (
+        Number.isInteger(m.id) &&
+        Array.isArray(m.svgs) &&
+        m.svgs.length <= MAX_DIAGRAMS &&
+        m.svgs.every(
+          (svg) => svg === null || (typeof svg === 'string' && svg.length <= MAX_SVG_LENGTH),
+        )
+      );
     case 'setMode':
       return MODES.includes(m.mode);
     case 'pasteImage':

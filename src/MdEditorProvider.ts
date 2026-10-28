@@ -13,6 +13,12 @@ import {
 } from './protocol';
 import { getNonce } from './util/nonce';
 
+/** The longest custom stylesheet that is passed on to the editor. */
+const MAX_CUSTOM_CSS = 50_000;
+
+/** How long an export waits for the editor to draw its diagrams. */
+const DIAGRAM_TIMEOUT_MS = 30_000;
+
 /** Where the last mode the user picked is remembered, per workspace. */
 const MODE_KEY = 'mdEditor.mode';
 
@@ -29,6 +35,8 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'mdEditor.editor';
 
   private readonly editors = new Set<OpenEditor>();
+  private readonly diagramRequests = new Map<number, (svgs: (string | null)[]) => void>();
+  private nextDiagramRequest = 1;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -93,6 +101,40 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     return true;
   }
 
+  /** The document of the editor that has focus, if any. */
+  activeDocument(): vscode.TextDocument | undefined {
+    return this.activeEditor()?.document;
+  }
+
+  /**
+   * Has a visible editor on `document` draw Mermaid diagrams, for the export. Resolves to
+   * undefined if no editor can, or none answers in time; null entries are diagrams that failed.
+   */
+  async drawDiagrams(
+    document: vscode.TextDocument,
+    sources: string[],
+  ): Promise<(string | null)[] | undefined> {
+    const open = [...this.editors].filter(
+      (editor) => editor.document === document && editor.panel.visible,
+    );
+    const editor = open.find((candidate) => candidate.panel.active) ?? open[0];
+    if (!editor) {
+      return undefined;
+    }
+    const id = this.nextDiagramRequest++;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.diagramRequests.delete(id);
+        resolve(undefined);
+      }, DIAGRAM_TIMEOUT_MS);
+      this.diagramRequests.set(id, (svgs) => {
+        clearTimeout(timer);
+        resolve(svgs);
+      });
+      editor.post({ type: 'drawDiagrams', id, sources });
+    });
+  }
+
   private activeEditor(): OpenEditor | undefined {
     return [...this.editors].find((editor) => editor.panel.active);
   }
@@ -153,6 +195,11 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
         }
         if (message.type === 'openLink') {
           void openLink(document, message.href, editor);
+          return;
+        }
+        if (message.type === 'diagrams') {
+          this.diagramRequests.get(message.id)?.(message.svgs);
+          this.diagramRequests.delete(message.id);
           return;
         }
         if (message.type === 'chooseImage') {
@@ -228,6 +275,7 @@ function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): Edit
     proseFontFamily: config.get<string>('proseFontFamily', ''),
     baseUri: webview.asWebviewUri(documentFolder).toString(),
     renderHtml: config.get<boolean>('renderHtml', false),
+    customCss: config.get<string>('customCss', '').slice(0, MAX_CUSTOM_CSS),
   };
 }
 

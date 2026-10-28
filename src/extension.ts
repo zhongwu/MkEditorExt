@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { MdEditorProvider } from './MdEditorProvider';
+import { exportHtml, exportPdf } from './exportCommand';
 import type { Mode } from './protocol';
 
 const MODE_CHOICES: { label: string; description: string; mode: Mode }[] = [
@@ -12,6 +13,20 @@ export function activate(context: vscode.ExtensionContext): void {
   const provider = new MdEditorProvider(context.extensionUri, context.workspaceState);
   const needsEditor = () =>
     vscode.window.showInformationMessage('Click in a Markdown Live Editor tab first.');
+  // Exports the focused Markdown Live Editor, or else the Markdown file in the text editor.
+  const runExport = (run: typeof exportHtml) => {
+    const textEditor = vscode.window.activeTextEditor;
+    const document =
+      provider.activeDocument() ??
+      (textEditor?.document.languageId === 'markdown' ? textEditor.document : undefined);
+    if (!document) {
+      void vscode.window.showInformationMessage('Open a Markdown file first.');
+      return;
+    }
+    return run(context.extensionUri, document, (sources) =>
+      provider.drawDiagrams(document, sources),
+    );
+  };
   context.subscriptions.push(
     provider.register(),
     vscode.commands.registerCommand('mdEditor.setMode', async () => {
@@ -27,6 +42,8 @@ export function activate(context: vscode.ExtensionContext): void {
         void needsEditor();
       }
     }),
+    vscode.commands.registerCommand('mdEditor.exportHtml', () => runExport(exportHtml)),
+    vscode.commands.registerCommand('mdEditor.exportPdf', () => runExport(exportPdf)),
     vscode.commands.registerCommand('mdEditor.insertImage', async () => {
       if (!(await provider.insertImage())) {
         void needsEditor();

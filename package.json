@@ -63,6 +63,16 @@
         "command": "mdEditor.insertImage",
         "title": "Insert Image",
         "category": "Markdown Live Editor"
+      },
+      {
+        "command": "mdEditor.exportHtml",
+        "title": "Export to HTML",
+        "category": "Markdown Live Editor"
+      },
+      {
+        "command": "mdEditor.exportPdf",
+        "title": "Export to PDF",
+        "category": "Markdown Live Editor"
       }
     ],
     "keybindings": [
@@ -112,6 +122,19 @@
           "default": "",
           "markdownDescription": "Font for text in the editor (CSS `font-family`). Leave empty to use VS Code's UI font. Code always uses `#editor.fontFamily#`."
         },
+        "mdEditor.browserPath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Program file of Google Chrome, Microsoft Edge or Chromium, used by **Export to PDF**. Leave empty to look in the usual places. It can only be set in your user settings."
+        },
+        "mdEditor.customCss": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "editPresentation": "multilineText",
+          "markdownDescription": "Your own CSS for the editor, for example `.cm-md-h1 { color: orange; }`. It can only be set in your user settings, not in a workspace, so a project cannot restyle your editor."
+        },
         "mdEditor.renderHtml": {
           "type": "boolean",
           "default": false,
@@ -145,8 +168,10 @@
     "@lezer/lr": "^1.4.11",
     "@lezer/markdown": "^1.8.1",
     "@types/katex": "^0.16.8",
+    "@types/markdown-it-footnote": "^3.0.4",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.5",
+    "@types/sanitize-html": "^2.16.2",
     "@types/vscode": "~1.74.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
@@ -154,8 +179,11 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "katex": "^0.19.1",
+    "markdown-it": "^15.0.3",
+    "markdown-it-footnote": "^4.0.0",
     "mermaid": "^12.2.0",
     "prettier": "^3.9.10",
+    "sanitize-html": "^2.18.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"

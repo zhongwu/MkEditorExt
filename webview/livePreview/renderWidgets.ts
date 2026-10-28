@@ -63,6 +63,11 @@ function renderDiagram(source: string, theme: string): Promise<string> {
   return result;
 }
 
+/** Draws diagrams for the export, in the light theme the exported page shows them on. */
+export function drawDiagrams(sources: string[]): Promise<(string | null)[]> {
+  return Promise.all(sources.map((source) => renderDiagram(source, 'default').catch(() => null)));
+}
+
 export class MermaidWidget extends WidgetType {
   constructor(readonly source: string) {
     super();

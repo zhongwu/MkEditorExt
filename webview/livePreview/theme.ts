@@ -131,6 +131,12 @@ export const livePreviewTheme = EditorView.theme({
   },
   '.cm-md-checkbox-checked::after': { content: '"\u2713"' },
 
+  '.cm-md-table td, .cm-md-table th': { cursor: 'text' },
+  '.cm-md-table [contenteditable]': {
+    outline: '1px solid var(--vscode-focusBorder)',
+    outlineOffset: '-1px',
+    whiteSpace: 'pre-wrap',
+  },
   '.cm-line.cm-md-fence-hidden': {
     lineHeight: '0.5',
     overflow: 'hidden',

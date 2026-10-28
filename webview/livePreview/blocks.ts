@@ -14,6 +14,7 @@ import { HtmlWidget } from './htmlWidget';
 import { resolveImageSrc } from './images';
 import { MathWidget, MermaidWidget } from './renderWidgets';
 import { isTouched, readingFacet, revealSelection } from './reveal';
+import { cellRanges, type CellRange } from './tableEdit';
 import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget } from './widgets';
 
 /** A piece of inline text inside a table cell. */
@@ -28,6 +29,8 @@ export interface TableData {
   align: Align[];
   header: Span[][];
   rows: Span[][][];
+  /** Where each cell sits in the document: the header first, then each row. */
+  ranges: CellRange[][];
 }
 
 export type BlockItem =
@@ -128,7 +131,21 @@ function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
   const delimiterLine = doc.lineAt(head.to).number + 1;
   const delimiter = delimiterLine <= doc.lines ? doc.line(delimiterLine).text : '';
   const align = delimiter.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(alignOf);
-  return { align, header: cells(head), rows: node.getChildren('TableRow').map(cells) };
+  const rows = node.getChildren('TableRow');
+  const header = cells(head);
+  const body = rows.map(cells);
+  // A row whose cells cannot be matched to the text is shown but not editable.
+  const rangesOf = (row: SyntaxNode, count: number) => {
+    const line = doc.lineAt(row.from);
+    const ranges = cellRanges(line.from, line.text);
+    return ranges.length === count ? ranges : [];
+  };
+  return {
+    align,
+    header,
+    rows: body,
+    ranges: [rangesOf(head, header.length), ...rows.map((row, i) => rangesOf(row, body[i].length))],
+  };
 }
 
 /** Everything the block live preview draws, given the text, the tree and the selection. */

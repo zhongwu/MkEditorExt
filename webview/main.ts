@@ -5,6 +5,7 @@ import { imageAlt, imageMarkdown } from '../src/images';
 import { createEditor, remoteChange, revealLine, setRenderHtml } from './editor';
 import { readBase64 } from './imagePaste';
 import { configureAssets } from './livePreview/lazy';
+import { drawDiagrams } from './livePreview/renderWidgets';
 import './livePreview/shared';
 import { setMode as applyModeToEditor } from './modes';
 import { createToolbar } from './toolbar';
@@ -39,6 +40,8 @@ const sync = new WebviewSync((message) => vscode.postMessage(message));
 let view: EditorView | undefined;
 let baseUri = '';
 let renderHtml = false;
+/** The user's own CSS (`mdEditor.customCss`), added after the editor's styles. */
+const customStyle = document.head.appendChild(document.createElement('style'));
 let mode: Mode = 'live';
 let nextImageId = 1;
 /** Images sent to the host and not yet saved, with where to put the link. */
@@ -101,6 +104,7 @@ function applySettings(settings: EditorSettings): void {
     setRenderHtml(view, settings.renderHtml);
   }
   renderHtml = settings.renderHtml;
+  customStyle.textContent = settings.customCss;
   const root = document.documentElement.style;
   if (settings.proseFontFamily) {
     root.setProperty('--md-prose-font', settings.proseFontFamily);
@@ -121,6 +125,12 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   }
   if (message.type === 'imageSaved') {
     insertImage(message.id, message.path, message.alt);
+    return;
+  }
+  if (message.type === 'drawDiagrams') {
+    void drawDiagrams(message.sources).then((svgs) =>
+      vscode.postMessage({ type: 'diagrams', id: message.id, svgs }),
+    );
     return;
   }
   if (message.type === 'revealLine') {

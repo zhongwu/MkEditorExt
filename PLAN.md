@@ -41,7 +41,7 @@ A `CustomTextEditorProvider` whose webview runs CodeMirror 6. VS Code's `TextDoc
 - **Code blocks:** highlighted in place by CodeMirror's nested language support (`@codemirror/language-data`, languages loaded on demand). No separate highlighter needed.
 - **Widgets:** **KaTeX** for math, **Mermaid** for diagrams. Both are loaded only when a file uses them.
 - **Export only:** **markdown-it** to produce HTML for "Export to HTML". It is not used for editing.
-- **Safety:** **DOMPurify** for any HTML we render (raw HTML blocks when enabled, export), plus a strict Content Security Policy (CSP) with a nonce.
+- **Safety:** **DOMPurify** for the raw HTML blocks the editor draws when enabled (the export uses `sanitize-html`, since it has no DOM), plus a strict Content Security Policy (CSP) with a nonce.
 - **Testing:** **Vitest** for the sync logic, the live-preview decorations and the editing commands; `@vscode/test-electron` for host integration tests; **vscode-extension-tester** for a few end-to-end tests that type into the webview.
 - **Packaging:** `@vscode/vsce` to publish to the VS Code Marketplace; `ovsx` to publish to Open VSX.
 - **Web support (optional, cheap):** keep host code free of Node-only APIs (use `vscode.workspace.fs`, not `fs`) and add a `browser` entry so the extension also runs on vscode.dev and github.dev.
@@ -281,9 +281,10 @@ MdEditorExt/
   - [ ] Try it with a real screen reader (NVDA or VoiceOver) before release (Phase 7).
 
 ### Phase 5: Extras (2–3 days, pick what you want)
-- [ ] **Table editing inside the widget:** typing in a cell edits only that cell's text (§3.6). Tab moves to the next cell.
-- [ ] **Export to HTML** with markdown-it and DOMPurify, as a standalone file with the CSS inlined.
-- [ ] **Settings:** prose font, custom CSS for the editor, default mode, render raw HTML on/off.
+- [x] **Table editing inside the widget:** clicking a cell edits it in place. While editing, the cell shows its Markdown source; Enter, Tab or clicking away replaces just that cell between its pipes (`cellChange` in `tableEdit.ts`), so nothing else in the table moves (§3.6). Tab and Shift+Tab move to the next and previous cell, Escape cancels, a typed `|` is escaped, and Shift+click shows the whole table's source. Rows whose cells cannot be matched to the text are shown but not editable. Checked in the headless browser harness (click, type, Tab, Enter). Not handled: IME composition inside a cell, and Ctrl+Z inside a cell undoes the document, not the cell text.
+- [x] **Export to HTML** (`mdEditor.exportHtml`, `src/export.ts`, `src/exportCommand.ts`): markdown-it makes one standalone page with its CSS inlined (light and dark), heading anchors that match the editor's, tables, task lists, alerts, footnotes, and KaTeX math with its fonts inlined (only when the document has math). Local images up to 5 MB are embedded as data URIs; others stay links. **Decision: `sanitize-html`, not DOMPurify.** DOMPurify needs a browser DOM and the export runs in the extension host. The export follows `mdEditor.renderHtml`: off (the default), raw HTML is escaped and shown as text; on, raw HTML blocks are sanitized whole (no scripts, styles, forms, frames or event handlers; only http, https and mailto links) and local `<img>` files are embedded. Inline tags such as a lone `<b>` stay escaped, since they cannot be matched with their partner. The page also carries a Content Security Policy that blocks scripts. **Mermaid diagrams** are drawn by the open editor, not the host (the 5 MB Mermaid bundle needs a browser): the host sends `drawDiagrams` with the sources, the webview answers `diagrams` with one SVG each (light theme, on a white box), and the export embeds them inline. If no visible editor is open on the document (exporting from a plain text tab) or a diagram fails, its source is shown as a code block and a warning says so. Not exported: highlighting inside code blocks.
+- [x] **Export to PDF** (`mdEditor.exportPdf`, `src/pdf.ts`): the same page, printed to PDF by the installed Chrome or Edge in headless mode (a throwaway profile, `--print-to-pdf`, no header or footer). The page has print styles (light colors, no page-wide margins, tables, images and diagrams kept whole). The browser is looked for in the usual places for the system, or at `mdEditor.browserPath` (user settings only, since it names a program to run). If none is found the command shows an error saying so; nothing is bundled (Puppeteer was rejected for its 150 MB). Checked by printing `blocks.md` with Edge. Word (`.docx`) export is not done.
+- [x] **Settings:** `mdEditor.proseFontFamily`, `mdEditor.defaultMode`, `mdEditor.renderHtml` and `mdEditor.customCss`. The custom CSS has `"scope": "application"`, so it can only be set in user settings: a repository's `.vscode/settings.json` cannot restyle your editor. It is capped at 50,000 characters and added as a `<style>` after the editor's own.
 
 ### Phase 6: Speed and reliability (2–3 days)
 - [ ] Test with files over 5 MB and over 10,000 lines. Inline decorations cover only the visible part. If the block widgets' state field gets slow on large files, only update the blocks a change touches.
@@ -347,12 +348,15 @@ MdEditorExt/
   "commands": [
     { "command": "mdEditor.openEditor", "title": "Open in Markdown Live Editor" },
     { "command": "mdEditor.setMode", "title": "Markdown Live Editor: Switch Mode (Live / Source / Reading)" },
-    { "command": "mdEditor.exportHtml", "title": "Markdown Live Editor: Export to HTML" }
+    { "command": "mdEditor.exportHtml", "title": "Markdown Live Editor: Export to HTML" },
+    { "command": "mdEditor.exportPdf", "title": "Markdown Live Editor: Export to PDF" }
   ],
   "configuration": { "properties": {
     "mdEditor.defaultMode": { "type": "string", "enum": ["live", "source", "reading"], "default": "live" },
     "mdEditor.proseFontFamily": { "type": "string", "default": "" },
-    "mdEditor.renderHtml": { "type": "boolean", "default": false }
+    "mdEditor.renderHtml": { "type": "boolean", "default": false },
+    "mdEditor.browserPath": { "type": "string", "default": "", "scope": "application" },
+    "mdEditor.customCss": { "type": "string", "default": "", "scope": "application" }
   }}
 }
 ```
