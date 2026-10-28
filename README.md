@@ -22,6 +22,9 @@ This extension edits the file's text directly and draws the rendered look over i
 - GitHub-style Markdown: tables, task lists, strikethrough and autolinks, plus math (KaTeX) and Mermaid diagrams.
 - Clickable task checkboxes, each a one-character edit.
 - A formatting toolbar and shortcuts, list continuation on Enter, and pasting images into an `assets/` folder.
+- Insert images by pasting, by dropping a file while holding Shift, or with the Image button.
+- Go to Heading (Ctrl/Cmd+Shift+O) and working `#anchor` links.
+- Ctrl/Cmd+Alt+M switches to Source mode and back.
 - Works with VS Code's own save, undo/redo, unsaved-changes marker, Git and Live Share.
 - Follows your VS Code theme (light, dark and high contrast) and fonts.
 - Export to HTML.

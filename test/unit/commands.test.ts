@@ -7,6 +7,7 @@ import {
   insertTable,
   setHeading,
   toggleLineKind,
+  toggleTask,
   toggleWrap,
 } from '../../webview/commands';
 import { collectInline } from '../../webview/livePreview/inline';
@@ -203,5 +204,20 @@ describe('Reading mode', () => {
   it('hides symbols even where the cursor is', () => {
     expect(hiddenCount(false)).toBe(0);
     expect(hiddenCount(true)).toBe(2);
+  });
+});
+
+describe('toggleTask', () => {
+  it('ticks and unticks the task on the cursor line with a one-character edit', () => {
+    let state = make('- [ ] one\n- [ ] t@wo\n');
+    state = state.update(toggleTask(state)).state;
+    expect(state.doc.toString()).toBe('- [ ] one\n- [x] two\n');
+    state = state.update(toggleTask(state)).state;
+    expect(state.doc.toString()).toBe('- [ ] one\n- [ ] two\n');
+  });
+
+  it('ignores lines that are not tasks', () => {
+    const state = make('plain @text');
+    expect(apply(state, toggleTask(state))).toBe('plain text');
   });
 });

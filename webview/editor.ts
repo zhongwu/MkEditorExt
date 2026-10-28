@@ -19,6 +19,7 @@ import {
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { formattingKeymap } from './commands';
+import { imageHandlers } from './imagePaste';
 import { renderHtmlFacet } from './livePreview/blocks';
 import { footnoteExtension } from './livePreview/footnotes';
 import { lazyMarkdown } from './livePreview/languages';
@@ -43,6 +44,8 @@ export interface EditorOptions {
   onLocalChange(changes: ChangeSet, startDoc: Text): void;
   onHistory(command: 'undo' | 'redo'): void;
   onOpenLink(href: string): void;
+  /** Image files pasted or dropped; `pos` is the drop position, or null for a paste. */
+  onImages(files: File[], pos: number | null): void;
 }
 
 // Colors come from the VS Code theme, so light, dark and high-contrast all work.
@@ -105,6 +108,16 @@ export function setRenderHtml(view: EditorView, enabled: boolean): void {
   view.dispatch({ effects: htmlCompartment.reconfigure(renderHtmlFacet.of(enabled)) });
 }
 
+/** Puts the cursor at the start of a (zero-based) line and scrolls it to the top. */
+export function revealLine(view: EditorView, line: number): void {
+  const target = view.state.doc.line(Math.min(Math.max(line + 1, 1), view.state.doc.lines));
+  view.dispatch({
+    selection: { anchor: target.from },
+    effects: EditorView.scrollIntoView(target.from, { y: 'start', yMargin: 12 }),
+  });
+  view.focus();
+}
+
 export function createEditor(options: EditorOptions): EditorView {
   const markdownSupport = lazyMarkdown([mathExtension, footnoteExtension]);
   const view = new EditorView({
@@ -130,6 +143,7 @@ export function createEditor(options: EditorOptions): EditorView {
         syntaxHighlighting(highlightStyle),
         modeExtensions(options.mode, options.baseUri),
         htmlCompartment.of(renderHtmlFacet.of(options.renderHtml)),
+        imageHandlers(options.onImages),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),
         theme,

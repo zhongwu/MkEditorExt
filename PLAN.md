@@ -79,7 +79,7 @@ Webview → host:
 | `edit` | `{ id, baseVersion, changes: [{ range: { start: {line, character}, end: {line, character} }, text }] }` |
 | `undo` / `redo` | — |
 | `openLink` | `{ href }`. The host opens http/https/mailto links in the browser and relative file links in VS Code, and refuses other schemes (`command:`, `file:` …). |
-| `pasteImage` | `{ name, bytes, insertAt }`, added in Phase 4. |
+| `pasteImage` | `{ id, name, mime, data }`: an image from a paste or drop, `data` as base64 (plain strings travel through `postMessage` without any typed-array handling). The host accepts only the types in `src/images.ts` and refuses more than 20 MB. |
 | `setMode` | `{ mode }`, so the host can remember it per workspace. |
 
 Host → webview:
@@ -89,6 +89,9 @@ Host → webview:
 | `init` | `{ text, version, baseUri, mode }`, sent in reply to `ready`, including after the webview is recreated. |
 | `ack` | `{ id, version }`: edit `id` was applied and the document is now at this version. |
 | `replace` | `{ text, version, id? }`: with `id`, edit `id` was rejected; without `id`, the document changed from outside. |
+| `mode` | `{ mode }`, sent before `init` and when the `mdEditor.setMode` command changes the mode. |
+| `imageSaved` | `{ id, path }`: the image sent as `pasteImage` `id` was saved at `path`, relative to the document. The webview then inserts the link as a normal `edit`. |
+| `revealLine` | `{ line }`: put the cursor at the start of that line and scroll it to the top (Go to Heading and `#anchor` links). |
 | `settings` | `{ settings }`, sent just before `init` and again on `onDidChangeConfiguration`. Kept separate from the sync messages so `DocumentSync` only deals with text. |
 
 Every `edit` gets exactly one answer: an `ack` or a `replace` carrying its `id`. Without ids, an outside change that arrives while an edit is in flight can be mistaken for the answer to that edit. If an `ack` arrives for an edit whose text was already overwritten by an outside `replace`, the webview sends `ready` again to get the full text.
@@ -264,16 +267,18 @@ MdEditorExt/
 - [x] **Toolbar and shortcuts:** bold, italic, strikethrough, code, headings 1–3, bullet, numbered and task lists, quote, link, table (`webview/commands.ts`, `webview/toolbar.ts`). Each is a pure function from state to transaction that changes only the markers it adds or removes (§3.6). Shortcuts: Ctrl/Cmd+B, I, E, K, Shift+X, Alt+1–3, Shift+7/8/9.
 - [x] **Lists:** Enter continues a list or task list and Backspace on an empty item removes it. Both come from `markdown()` (its default keymap), and a unit test covers them. The first Enter on an empty second item starts a loose list; the next Enter ends the list. That is the package's behavior and is left as is.
 - [x] **Paste a URL over selected text** to turn it into a link. This also comes from `markdown()` (`pasteURLAsLink`).
-- [ ] **Paste or drag in images:**
-  1. The webview reads the bytes and sends `pasteImage`.
-  2. The host writes the file under `./assets/` with `workspace.fs`.
-  3. The link is inserted through a normal `edit`.
+- [x] **Paste or drag in images:**
+  1. The webview reads the bytes and sends `pasteImage` (`webview/imagePaste.ts`). A paste that also carries text is left alone, so copied spreadsheet ranges still paste as text.
+  2. The host writes the file under `assets/` next to the document with `workspace.fs` (`src/saveImage.ts`). The name is the original file name when it means something, otherwise `pasted-YYYYMMDD-HHMMSS`; a number is added if the name is taken (`src/images.ts`).
+  3. The link `![alt](assets/name.png)` is inserted through a normal `edit`, at the drop position or the cursor.
+  4. Dropping a file onto the editor needs **Shift** held: without it VS Code puts its own drop zone over the editor and opens the file in a new tab (checked by hand: Shift+drop works). The README says so. An **Insert Image** toolbar button and command (`mdEditor.insertImage`) open a file picker instead. A picked file already inside the document's folder is linked where it is; any other is copied into `assets/`.
 - [x] **Modes:** Live, Source and Reading (§3.5), switched by the toolbar, the `mdEditor.setMode` command and `mdEditor.toggleSource` (Ctrl/Cmd+Alt+M). The last mode picked is remembered per workspace (`workspaceState`) and used for newly opened editors; `mdEditor.defaultMode` applies until one is picked. Source mode removes the preview extensions; Reading mode keeps them, makes the editor read-only and ignores the selection when deciding which symbols to show (`readingFacet` in `reveal.ts`).
-- [ ] **Outline:** check whether VS Code's Outline view works while the custom editor is active. If it doesn't, add a simple heading list that jumps to a heading.
+- [x] **Outline:** VS Code's Outline view is tied to text editors, so we add our own: `mdEditor.goToHeading` (Ctrl/Cmd+Shift+O in the editor) lists the headings in a quick pick and jumps to the one chosen. `#anchor` links jump the same way, using GitHub's anchors (`src/headings.ts`). Not verified: whether the built-in Outline view shows anything for a custom editor; it needs a check in a real window.
 - [ ] **Accessibility:**
   - [x] Toolbar buttons have `aria-label`s and can be reached with the keyboard.
-  - Widgets have text alternatives (image alt text, a table summary, the math source).
-  - Switching to Source mode is one shortcut away; document it as the screen-reader mode.
+  - [x] Widgets have text alternatives: image alt text, a table summary, the diagram source for Mermaid, front matter keys, a separator role for rules, and a Ctrl/Cmd+Enter command (and toolbar button) that ticks or unticks the task on the cursor's line, since the checkbox widget itself cannot take keyboard focus. KaTeX's own output carries MathML for screen readers.
+  - [x] Switching to Source mode is one shortcut away (Ctrl/Cmd+Alt+M); the README names it as the screen-reader mode.
+  - [ ] Try it with a real screen reader (NVDA or VoiceOver) before release (Phase 7).
 
 ### Phase 5: Extras (2–3 days, pick what you want)
 - [ ] **Table editing inside the widget:** typing in a cell edits only that cell's text (§3.6). Tab moves to the next cell.

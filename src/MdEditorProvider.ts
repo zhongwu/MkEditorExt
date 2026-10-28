@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { DocumentSync } from './DocumentSync';
+import { findAnchor, findHeadings } from './headings';
 import { classifyLink } from './links';
+import { pickImage, saveImage } from './saveImage';
 import {
   MODES,
   isWebviewMessage,
@@ -17,7 +19,9 @@ const MODE_KEY = 'mdEditor.mode';
 /** One open editor: its panel and the mode it is showing. */
 interface OpenEditor {
   panel: vscode.WebviewPanel;
+  document: vscode.TextDocument;
   post(message: HostMessage): void;
+  chooseImage(): Promise<void>;
   mode: Mode;
 }
 
@@ -51,6 +55,41 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     editor.mode = mode;
     void this.workspaceState.update(MODE_KEY, mode);
     editor.post({ type: 'mode', mode });
+    return true;
+  }
+
+  /** Lets the user pick a heading in the focused editor and jumps there. */
+  async goToHeading(): Promise<boolean> {
+    const editor = this.activeEditor();
+    if (!editor) {
+      return false;
+    }
+    const headings = findHeadings(editor.document.getText());
+    if (headings.length === 0) {
+      void vscode.window.showInformationMessage('This document has no headings.');
+      return true;
+    }
+    const choice = await vscode.window.showQuickPick(
+      headings.map((heading) => ({
+        label: `${'    '.repeat(heading.level - 1)}${heading.text || '(empty heading)'}`,
+        description: `H${heading.level}`,
+        line: heading.line,
+      })),
+      { title: 'Go to heading', matchOnDescription: false },
+    );
+    if (choice) {
+      editor.post({ type: 'revealLine', line: choice.line });
+    }
+    return true;
+  }
+
+  /** Lets the user pick an image for the focused editor; returns false if none has focus. */
+  async insertImage(): Promise<boolean> {
+    const editor = this.activeEditor();
+    if (!editor) {
+      return false;
+    }
+    await editor.chooseImage();
     return true;
   }
 
@@ -88,7 +127,18 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
       executeCommand: (command) => void vscode.commands.executeCommand(command),
     });
 
-    const editor: OpenEditor = { panel, post, mode: this.initialMode() };
+    const editor: OpenEditor = {
+      panel,
+      document,
+      post,
+      async chooseImage() {
+        const image = await pickImage(documentFolder);
+        if (image) {
+          post({ type: 'imageSaved', id: 0, ...image });
+        }
+      },
+      mode: this.initialMode(),
+    };
     this.editors.add(editor);
 
     const subscriptions = [
@@ -102,7 +152,19 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         if (message.type === 'openLink') {
-          void openLink(document.uri, message.href);
+          void openLink(document, message.href, editor);
+          return;
+        }
+        if (message.type === 'chooseImage') {
+          void editor.chooseImage();
+          return;
+        }
+        if (message.type === 'pasteImage') {
+          void saveImage(documentFolder, message).then((path) => {
+            if (path) {
+              post({ type: 'imageSaved', id: message.id, path });
+            }
+          });
           return;
         }
         if (message.type === 'ready') {
@@ -170,7 +232,12 @@ function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): Edit
 }
 
 /** Opens a Ctrl/Cmd+clicked link: web links in the browser, file links in VS Code. */
-async function openLink(documentUri: vscode.Uri, href: string): Promise<void> {
+async function openLink(
+  document: vscode.TextDocument,
+  href: string,
+  editor: OpenEditor,
+): Promise<void> {
+  const documentUri = document.uri;
   const target = classifyLink(href);
   if (!target) {
     void vscode.window.showWarningMessage(`This link type can't be opened: ${href}`);
@@ -196,9 +263,13 @@ async function openLink(documentUri: vscode.Uri, href: string): Promise<void> {
       await vscode.commands.executeCommand('vscode.open', uri);
       return;
     }
-    case 'anchor':
-      // Jumping to a heading in the same file comes with the outline work (PLAN.md Phase 4).
+    case 'anchor': {
+      const heading = findAnchor(findHeadings(document.getText()), target.fragment);
+      if (heading) {
+        editor.post({ type: 'revealLine', line: heading.line });
+      }
       return;
+    }
   }
 }
 

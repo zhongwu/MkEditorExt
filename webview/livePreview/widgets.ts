@@ -43,6 +43,7 @@ export class HrWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const hr = document.createElement('div');
     hr.className = 'cm-md-hr';
+    hr.setAttribute('role', 'separator');
     return revealOnMouseDown(hr, view);
   }
 }
@@ -57,6 +58,11 @@ export class FrontMatterWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const box = document.createElement('div');
     box.className = 'cm-md-frontmatter';
+    box.setAttribute('role', 'group');
+    box.setAttribute(
+      'aria-label',
+      `Front matter: ${this.entries.map(([key]) => key).join(', ') || 'empty'}`,
+    );
     const title = document.createElement('div');
     title.className = 'cm-md-frontmatter-title';
     title.textContent = 'Front matter';
@@ -83,6 +89,10 @@ export class TableWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const table = document.createElement('table');
     table.className = 'cm-md-table';
+    table.setAttribute(
+      'aria-label',
+      `Table, ${this.data.header.length} columns, ${this.data.rows.length + 1} rows`,
+    );
     const addRow = (parent: HTMLElement, cells: Span[][], tag: 'th' | 'td') => {
       const tr = document.createElement('tr');
       cells.forEach((cell, i) => {
@@ -148,12 +158,16 @@ export class CheckboxWidget extends WidgetType {
     box.className = 'cm-md-checkbox' + (this.checked ? ' cm-md-checkbox-checked' : '');
     box.setAttribute('role', 'checkbox');
     box.setAttribute('aria-checked', String(this.checked));
-    box.addEventListener('mousedown', (event) => {
+    box.setAttribute('aria-label', 'Task');
+    const toggle = () => {
       // A one-character edit: [ ] <-> [x]. Nothing else in the line changes (PLAN.md §3.6).
-      event.preventDefault();
       if (view.state.readOnly) return;
       const pos = view.posAtDOM(box) + this.offset;
       view.dispatch({ changes: { from: pos, to: pos + 1, insert: this.checked ? ' ' : 'x' } });
+    };
+    box.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      toggle();
     });
     return box;
   }

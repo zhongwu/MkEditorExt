@@ -53,6 +53,16 @@
         "command": "mdEditor.toggleSource",
         "title": "Toggle Source Mode",
         "category": "Markdown Live Editor"
+      },
+      {
+        "command": "mdEditor.goToHeading",
+        "title": "Go to Heading",
+        "category": "Markdown Live Editor"
+      },
+      {
+        "command": "mdEditor.insertImage",
+        "title": "Insert Image",
+        "category": "Markdown Live Editor"
       }
     ],
     "keybindings": [
@@ -60,6 +70,12 @@
         "command": "mdEditor.toggleSource",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
+        "when": "activeCustomEditorId == 'mdEditor.editor'"
+      },
+      {
+        "command": "mdEditor.goToHeading",
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o",
         "when": "activeCustomEditorId == 'mdEditor.editor'"
       }
     ],

@@ -160,6 +160,21 @@ export function toggleLineKind(state: EditorState, kind: LineKind): TransactionS
   return { changes };
 }
 
+const TASK = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/;
+
+/** Ticks or unticks the task on each selected line: a one-character edit, `[ ]` <-> `[x]`. */
+export function toggleTask(state: EditorState): TransactionSpec {
+  const changes: ChangeSpec[] = [];
+  for (const line of selectedLines(state)) {
+    const match = TASK.exec(line.text);
+    if (match) {
+      const at = line.from + match[1].length;
+      changes.push({ from: at, to: at + 1, insert: match[2] === ' ' ? 'x' : ' ' });
+    }
+  }
+  return { changes };
+}
+
 /** `[text](url)` around the selection, with the part to type next selected. */
 export function insertLink(state: EditorState): TransactionSpec {
   return state.changeByRange((range) => {
@@ -216,6 +231,7 @@ export const commands = {
   bullet: command((s) => toggleLineKind(s, 'bullet')),
   number: command((s) => toggleLineKind(s, 'number')),
   task: command((s) => toggleLineKind(s, 'task')),
+  toggleTask: command(toggleTask),
   quote: command((s) => toggleLineKind(s, 'quote')),
   link: command(insertLink),
   table: command(insertTable),
@@ -230,6 +246,7 @@ export const formattingKeymap: readonly KeyBinding[] = [
   { key: 'Mod-Alt-1', run: commands.h1 },
   { key: 'Mod-Alt-2', run: commands.h2 },
   { key: 'Mod-Alt-3', run: commands.h3 },
+  { key: 'Mod-Enter', run: commands.toggleTask },
   { key: 'Mod-Shift-7', run: commands.number },
   { key: 'Mod-Shift-8', run: commands.bullet },
   { key: 'Mod-Shift-9', run: commands.quote },

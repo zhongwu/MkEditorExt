@@ -24,16 +24,18 @@ const BUTTON_LABELS = {
   bullet: ['•', 'Bulleted list', `${mod}+Shift+8`],
   number: ['1.', 'Numbered list', `${mod}+Shift+7`],
   task: ['☐', 'Task list', ''],
+  toggleTask: ['☑', 'Tick or untick task', `${mod}+Enter`],
   quote: ['"', 'Quote', `${mod}+Shift+9`],
   link: ['Link', 'Link', `${mod}+K`],
   table: ['Table', 'Insert table', ''],
+  image: ['Image', 'Insert image from a file', ''],
 } as const satisfies Record<string, readonly [string, string, string]>;
 
 const GROUPS: (keyof typeof BUTTON_LABELS)[][] = [
   ['bold', 'italic', 'strike', 'code'],
   ['h1', 'h2', 'h3'],
-  ['bullet', 'number', 'task', 'quote'],
-  ['link', 'table'],
+  ['bullet', 'number', 'task', 'toggleTask', 'quote'],
+  ['link', 'table', 'image'],
 ];
 
 const MODE_LABELS: Record<Mode, string> = { live: 'Live', source: 'Source', reading: 'Reading' };

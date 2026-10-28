@@ -22,6 +22,16 @@ export function activate(context: vscode.ExtensionContext): void {
         void needsEditor();
       }
     }),
+    vscode.commands.registerCommand('mdEditor.goToHeading', async () => {
+      if (!(await provider.goToHeading())) {
+        void needsEditor();
+      }
+    }),
+    vscode.commands.registerCommand('mdEditor.insertImage', async () => {
+      if (!(await provider.insertImage())) {
+        void needsEditor();
+      }
+    }),
     // One shortcut to and from plain Markdown, the mode that suits screen readers best.
     vscode.commands.registerCommand('mdEditor.toggleSource', () => {
       const mode = provider.activeMode();

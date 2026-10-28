@@ -73,6 +73,11 @@ export class MermaidWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('div');
     el.className = 'cm-md-mermaid';
+    el.setAttribute('role', 'img');
+    el.setAttribute(
+      'aria-label',
+      `Mermaid diagram: ${this.source.replace(/s+/g, ' ').trim().slice(0, 200)}`,
+    );
     el.textContent = 'Rendering diagram…';
     renderDiagram(this.source, mermaidTheme())
       .then((svg) => {

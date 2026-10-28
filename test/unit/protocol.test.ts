@@ -41,3 +41,18 @@ describe('setMode message', () => {
     expect(isWebviewMessage({ type: 'setMode' })).toBe(false);
   });
 });
+
+describe('pasteImage message', () => {
+  const image = { type: 'pasteImage', id: 1, name: 'a.png', mime: 'image/png', data: 'AAAA' };
+
+  it('accepts an image of a known type', () => {
+    expect(isWebviewMessage(image)).toBe(true);
+  });
+
+  it('refuses other types, long names and missing data', () => {
+    expect(isWebviewMessage({ ...image, mime: 'text/html' })).toBe(false);
+    expect(isWebviewMessage({ ...image, mime: '__proto__' })).toBe(false);
+    expect(isWebviewMessage({ ...image, name: 'x'.repeat(256) })).toBe(false);
+    expect(isWebviewMessage({ ...image, data: undefined })).toBe(false);
+  });
+});

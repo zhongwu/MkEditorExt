@@ -1,6 +1,8 @@
 // Messages exchanged between the extension host and the webview (PLAN.md §3.2).
 // This file is imported by both sides, so it must contain types and plain functions only.
 
+import { IMAGE_TYPES } from './images';
+
 /** A zero-based position, counted the same way as VS Code's `Position`. */
 export interface LinePosition {
   line: number;
@@ -29,7 +31,13 @@ export type SyncMessage =
   | { type: 'redo' };
 
 export type WebviewMessage =
-  SyncMessage | { type: 'openLink'; href: string } | { type: 'setMode'; mode: Mode };
+  | SyncMessage
+  | { type: 'openLink'; href: string }
+  | { type: 'setMode'; mode: Mode }
+  /** An image from the clipboard or a drop; `data` is its bytes in base64. */
+  /** Ask the host to let the user pick an image file to insert. */
+  | { type: 'chooseImage' }
+  | { type: 'pasteImage'; id: number; name: string; mime: string; data: string };
 
 /** Settings the webview needs, from the `mdEditor.*` configuration. */
 export interface EditorSettings {
@@ -52,7 +60,13 @@ export type SyncHostMessage =
 
 /** `mode` is sent before `init`, and again when the `mdEditor.setMode` command changes it. */
 export type HostMessage =
-  SyncHostMessage | { type: 'settings'; settings: EditorSettings } | { type: 'mode'; mode: Mode };
+  | SyncHostMessage
+  | { type: 'settings'; settings: EditorSettings }
+  | { type: 'mode'; mode: Mode }
+  /** The image sent as `pasteImage` `id` was saved at `path`, relative to the document. */
+  | { type: 'imageSaved'; id: number; path: string; alt?: string }
+  /** Put the cursor at the start of this line and scroll it into view. */
+  | { type: 'revealLine'; line: number };
 
 /** Longest link target the host will try to open. */
 const MAX_HREF_LENGTH = 2048;
@@ -102,8 +116,19 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
       );
     case 'openLink':
       return typeof m.href === 'string' && m.href.length <= MAX_HREF_LENGTH;
+    case 'chooseImage':
+      return true;
     case 'setMode':
       return MODES.includes(m.mode);
+    case 'pasteImage':
+      return (
+        Number.isInteger(m.id) &&
+        typeof m.name === 'string' &&
+        m.name.length <= 255 &&
+        typeof m.mime === 'string' &&
+        Object.hasOwn(IMAGE_TYPES, m.mime) &&
+        typeof m.data === 'string'
+      );
     default:
       return false;
   }
