@@ -22,6 +22,7 @@ import { tags } from '@lezer/highlight';
 import { blockPreview } from './livePreview/blocks';
 import { inlinePreview } from './livePreview/inline';
 import { linkAt } from './livePreview/links';
+import { mathExtension } from './livePreview/math';
 import { livePreviewTheme } from './livePreview/theme';
 
 /** Marks transactions that apply the host's text, so they aren't sent back as edits. */
@@ -107,7 +108,7 @@ export function createEditor(options: EditorOptions): EditorView {
         // VS Code's webview wrapper forwards Ctrl+Z / Ctrl+Y to the workbench, which undoes
         // the document; the result arrives as a `replace`.
         keymap.of([...defaultKeymap, indentWithTab]),
-        markdown({ base: markdownLanguage, codeLanguages: languages }),
+        markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [mathExtension] }),
         syntaxHighlighting(highlightStyle),
         inlinePreview,
         blockPreview(options.baseUri),

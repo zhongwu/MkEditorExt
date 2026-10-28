@@ -160,6 +160,13 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
           }
           return;
         }
+        case 'InlineMath':
+          // Shown as source in code font; drawn as a formula by blocks.ts while the cursor is away.
+          items.push({ type: 'mark', from: node.from, to: node.to, className: 'cm-md-mathsrc' });
+          return false;
+        case 'BlockMath':
+          eachLine(node, 'cm-md-codeblock');
+          return false;
         case 'FencedCode':
         case 'CodeBlock':
           // Code keeps its own highlighting; Markdown inside it is not styled.

@@ -11,6 +11,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import { findFrontMatter } from './frontMatter';
 import { resolveImageSrc } from './images';
+import { MathWidget, MermaidWidget } from './renderWidgets';
 import { isTouched } from './reveal';
 import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget } from './widgets';
 
@@ -35,7 +36,9 @@ export type BlockItem =
   /** `revealed`: the cursor is in the image's source, so the image is drawn below it instead. */
   | { type: 'image'; from: number; to: number; src: string; alt: string; revealed: boolean }
   /** `offset`: where the `[ ]` character to toggle sits, counted from `from`. */
-  | { type: 'checkbox'; from: number; to: number; checked: boolean; offset: number };
+  | { type: 'checkbox'; from: number; to: number; checked: boolean; offset: number }
+  | { type: 'math'; from: number; to: number; tex: string; display: boolean }
+  | { type: 'mermaid'; from: number; to: number; source: string };
 
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark', 'LinkMark']);
 
@@ -170,6 +173,41 @@ export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] 
           }
           return false;
         }
+        case 'InlineMath': {
+          const [open, close] = node.getChildren('MathMark');
+          if (open && close && !touched(node.from, node.to)) {
+            const tex = doc.sliceString(open.to, close.from);
+            items.push({ type: 'math', from: node.from, to: node.to, tex, display: false });
+          }
+          return false;
+        }
+        case 'BlockMath': {
+          if (topLevel && !touched(node.from, node.to)) {
+            const marks = node.getChildren('MathMark');
+            const close = marks.length > 1 ? marks[marks.length - 1] : undefined;
+            const tex = doc.sliceString(marks[0].to, close ? close.from : node.to).trim();
+            if (tex) items.push({ type: 'math', from: node.from, to: node.to, tex, display: true });
+          }
+          return false;
+        }
+        case 'FencedCode': {
+          const info = node.getChild('CodeInfo');
+          const language = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
+          if (topLevel && (language === 'math' || language === 'mermaid')) {
+            if (!touched(node.from, node.to)) {
+              const code = node.getChild('CodeText');
+              const source = code ? doc.sliceString(code.from, code.to).trim() : '';
+              if (source) {
+                items.push(
+                  language === 'math'
+                    ? { type: 'math', from: node.from, to: node.to, tex: source, display: true }
+                    : { type: 'mermaid', from: node.from, to: node.to, source },
+                );
+              }
+            }
+          }
+          return false;
+        }
         case 'TaskMarker': {
           const listMark = node.parent?.parent?.getChild('ListMark');
           if (listMark && !touched(listMark.from, node.to + 1)) {
@@ -224,6 +262,22 @@ export function toBlockDecorations(items: readonly BlockItem[]): DecorationSet {
         );
         break;
       }
+      case 'math':
+        ranges.push(
+          Decoration.replace({
+            widget: new MathWidget(item.tex, item.display),
+            block: item.display,
+          }).range(item.from, item.to),
+        );
+        break;
+      case 'mermaid':
+        ranges.push(
+          Decoration.replace({ widget: new MermaidWidget(item.source), block: true }).range(
+            item.from,
+            item.to,
+          ),
+        );
+        break;
       case 'checkbox':
         ranges.push(
           Decoration.replace({ widget: new CheckboxWidget(item.checked, item.offset) }).range(

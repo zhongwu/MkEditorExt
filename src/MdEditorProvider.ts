@@ -80,8 +80,8 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     const csp = [
       `default-src 'none'`,
       `img-src ${webview.cspSource} https: data:`,
-      // CodeMirror adds its own <style> elements, tagged with the nonce (EditorView.cspNonce).
-      `style-src ${webview.cspSource} 'nonce-${nonce}'`,
+      // Inline styles are needed by CodeMirror, KaTeX and Mermaid; scripts stay locked to the nonce.
+      `style-src ${webview.cspSource} 'unsafe-inline'`,
       `font-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
     ].join('; ');

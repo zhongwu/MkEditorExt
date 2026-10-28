@@ -166,12 +166,12 @@ Starting policy, with a new nonce each time the HTML is created:
 ```
 default-src 'none';
 img-src ${webview.cspSource} https: data:;
-style-src ${webview.cspSource};
+style-src ${webview.cspSource} 'unsafe-inline';
 font-src ${webview.cspSource};
 script-src 'nonce-${nonce}';
 ```
 
-`font-src` is there from the start for KaTeX. CodeMirror sets styles through a stylesheet it builds at runtime, so check in the Phase 1 spike whether `style-src` needs `'unsafe-inline'` or a nonce (CodeMirror supports a CSP nonce via `EditorView.cspNonce`). Mermaid adds inline styles too. When Mermaid is added, settle the same question for it and record the decision.
+**Decision (Phase 3):** `style-src` allows `'unsafe-inline'`. CodeMirror, KaTeX and Mermaid all set inline styles, and Mermaid's `<style>` elements and style attributes can't carry a nonce. `script-src` stays locked to the nonce, so this allows inline CSS only, never script. Mermaid runs with `securityLevel: 'strict'` (it sanitizes labels), and KaTeX with `trust: false`. KaTeX and Mermaid are separate bundles (`dist/katex.js`, `dist/mermaid.js`) that the webview adds as `<script nonce>` tags the first time a document needs them, so a file without math or diagrams never loads them. `font-src` is for the KaTeX fonts.
 
 ## 4. Project layout
 
@@ -252,10 +252,10 @@ MdEditorExt/
   - [x] horizontal rules
   - [x] front matter
 - [ ] Highlight code blocks in place with nested languages, loaded on demand.
-- [ ] Add the math parser extension and KaTeX widgets for inline and block math.
-- [ ] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7).
+- [x] Add the math parser extension (`webview/livePreview/math.ts`) and KaTeX widgets for inline and block math. Loaded on demand.
+- [x] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7). Loaded on demand; the production bundle is about 5 MB, only loaded for files with diagrams.
 - [ ] Raw HTML blocks: source by default; a setting renders them through DOMPurify.
-- [ ] Math also in ```math fences (as GitHub does), alongside `$…$` and `$$…$$`.
+- [x] Math also in ```math fences (as GitHub does), alongside `$…$` and `$$…$$`.
 - [ ] GitHub-style alerts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]` …) drawn as callouts, and footnotes (`[^1]`) with hover preview.
 - [ ] Other fenced diagram blocks, each loaded only when used: Graphviz/DOT, PlantUML (needs a server or WASM build, so decide when reached) and Vega-Lite charts. Add one at a time, after Mermaid and KaTeX work.
 - [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.

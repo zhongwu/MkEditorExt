@@ -4,6 +4,20 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import type { Span, TableData } from './blocks';
 
+/**
+ * Clicking a widget puts the cursor at the start of its source, which shows the source instead.
+ * (CodeMirror ignores events inside widgets, so this does it explicitly.)
+ */
+export function revealOnMouseDown(element: HTMLElement, view: EditorView): HTMLElement {
+  element.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    view.dispatch({ selection: { anchor: view.posAtDOM(element) } });
+    view.focus();
+  });
+  return element;
+}
+
 function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
   for (const span of spans) {
     if (span.type === 'text') {
@@ -26,10 +40,10 @@ export class HrWidget extends WidgetType {
   eq(): boolean {
     return true;
   }
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const hr = document.createElement('div');
     hr.className = 'cm-md-hr';
-    return hr;
+    return revealOnMouseDown(hr, view);
   }
 }
 
@@ -40,7 +54,7 @@ export class FrontMatterWidget extends WidgetType {
   eq(other: FrontMatterWidget): boolean {
     return JSON.stringify(this.entries) === JSON.stringify(other.entries);
   }
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const box = document.createElement('div');
     box.className = 'cm-md-frontmatter';
     const title = document.createElement('div');
@@ -55,7 +69,7 @@ export class FrontMatterWidget extends WidgetType {
       row.append(k, value);
       box.append(row);
     }
-    return box;
+    return revealOnMouseDown(box, view);
   }
 }
 
@@ -66,7 +80,7 @@ export class TableWidget extends WidgetType {
   eq(other: TableWidget): boolean {
     return JSON.stringify(this.data) === JSON.stringify(other.data);
   }
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const table = document.createElement('table');
     table.className = 'cm-md-table';
     const addRow = (parent: HTMLElement, cells: Span[][], tag: 'th' | 'td') => {
@@ -85,7 +99,7 @@ export class TableWidget extends WidgetType {
     const tbody = document.createElement('tbody');
     for (const row of this.data.rows) addRow(tbody, row, 'td');
     table.append(thead, tbody);
-    return table;
+    return revealOnMouseDown(table, view);
   }
 }
 
@@ -114,7 +128,7 @@ export class ImageWidget extends WidgetType {
       view.requestMeasure();
     });
     wrap.append(img);
-    return wrap;
+    return revealOnMouseDown(wrap, view);
   }
 }
 

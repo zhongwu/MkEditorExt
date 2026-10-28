@@ -1,6 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import type { EditorSettings, HostMessage } from '../src/protocol';
 import { createEditor, remoteChange } from './editor';
+import { configureAssets } from './livePreview/lazy';
 import { WebviewSync, minimalChange, normalizeLineEndings } from './sync';
 import './styles/editor.css';
 
@@ -8,6 +9,11 @@ const vscode = acquireVsCodeApi();
 // The bundle runs as a classic script, so currentScript is our own <script nonce="…">.
 const nonce = (document.currentScript as HTMLScriptElement | null)?.nonce ?? '';
 const parent = document.getElementById('editor') as HTMLElement;
+// KaTeX and Mermaid are separate bundles next to this one, loaded when a document needs them.
+configureAssets({
+  base: (document.currentScript as HTMLScriptElement | null)?.src.replace(/[^/]*$/, '') ?? '',
+  nonce,
+});
 
 const sync = new WebviewSync((message) => vscode.postMessage(message));
 let view: EditorView | undefined;

@@ -42,6 +42,18 @@ export const livePreviewTheme = EditorView.theme({
 
   '.cm-line.cm-md-frontmatter-source': { fontFamily: codeFont, fontSize: '0.92em', color: muted },
 
+  '.cm-md-mathsrc': { fontFamily: codeFont, fontSize: '0.92em' },
+  '.cm-md-math-display': { margin: '0.4em 24px', textAlign: 'center', overflowX: 'auto' },
+  '.cm-md-math-error': { color: 'var(--vscode-errorForeground)' },
+  '.cm-md-mermaid': {
+    margin: '0.4em 24px',
+    textAlign: 'center',
+    color: muted,
+    fontSize: '0.9em',
+  },
+  '.cm-md-mermaid-done svg': { maxWidth: '100%', height: 'auto' },
+  '.cm-md-mermaid-error': { color: 'var(--vscode-errorForeground)', textAlign: 'left' },
+
   '.cm-md-hr': {
     margin: '0.6em 24px',
     borderTop: '1px solid var(--vscode-textBlockQuote-border)',

@@ -36,6 +36,19 @@ const builds = [
   },
 ];
 
+// Loaded on demand by the webview (webview/livePreview/lazy.ts). The KaTeX stylesheet and fonts
+// are written next to katex.js; only the woff2 fonts are needed.
+builds.push({
+  ...common,
+  entryPoints: { katex: 'webview/lazy/katex.ts', mermaid: 'webview/lazy/mermaid.ts' },
+  outdir: 'dist',
+  platform: 'browser',
+  format: 'iife',
+  target: 'es2022',
+  loader: { '.woff2': 'file', '.woff': 'empty', '.ttf': 'empty' },
+  assetNames: 'fonts/[name]',
+});
+
 if (tests) {
   builds.push({
     ...common,
