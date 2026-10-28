@@ -12,6 +12,12 @@
   "engines": {
     "vscode": "^1.74.0"
   },
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "categories": [
     "Other"
   ],

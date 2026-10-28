@@ -41,7 +41,7 @@ A `CustomTextEditorProvider` whose webview runs CodeMirror 6. VS Code's `TextDoc
 - **Code blocks:** highlighted in place by CodeMirror's nested language support (`@codemirror/language-data`, languages loaded on demand). No separate highlighter needed.
 - **Widgets:** **KaTeX** for math, **Mermaid** for diagrams. Both are loaded only when a file uses them.
 - **Export only:** **markdown-it** to produce HTML for "Export to HTML". It is not used for editing.
-- **Safety:** **DOMPurify** for the raw HTML blocks the editor draws when enabled (the export uses `sanitize-html`, since it has no DOM), plus a strict Content Security Policy (CSP) with a nonce.
+- **Safety:** **DOMPurify** for the raw HTML blocks the editor draws when enabled (the export uses `sanitize-html`, since it has no DOM), plus a strict Content Security Policy (CSP) with a nonce. The extension works in untrusted (Restricted Mode) folders: a folder can only change `renderHtml` (sanitized), `defaultMode` and `proseFontFamily`; `customCss` and `browserPath` (a program to run) are user-settings only.
 - **Testing:** **Vitest** for the sync logic, the live-preview decorations and the editing commands; `@vscode/test-electron` for host integration tests; **vscode-extension-tester** for a few end-to-end tests that type into the webview.
 - **Packaging:** `@vscode/vsce` to publish to the VS Code Marketplace; `ovsx` to publish to Open VSX.
 - **Web support (optional, cheap):** keep host code free of Node-only APIs (use `vscode.workspace.fs`, not `fs`) and add a `browser` entry so the extension also runs on vscode.dev and github.dev.
@@ -287,11 +287,15 @@ MdEditorExt/
 - [x] **Settings:** `mdEditor.proseFontFamily`, `mdEditor.defaultMode`, `mdEditor.renderHtml` and `mdEditor.customCss`. The custom CSS has `"scope": "application"`, so it can only be set in user settings: a repository's `.vscode/settings.json` cannot restyle your editor. It is capped at 50,000 characters and added as a `<style>` after the editor's own.
 
 ### Phase 6: Speed and reliability (2–3 days)
-- [ ] Test with files over 5 MB and over 10,000 lines. Inline decorations cover only the visible part. If the block widgets' state field gets slow on large files, only update the blocks a change touches.
-- [ ] **IME input** (Chinese, Japanese, Korean): decorations must not change during an IME composition, or the text being composed gets disrupted. Hold back reveal/hide updates while composing, and test with real IMEs on Windows and macOS.
-- [ ] Handle the webview being hidden and shown again without `retainContextWhenHidden`: on `ready` the host sends `init` again, and the cursor, selection, scroll position and mode come back from `getState`. Undo history is unaffected because VS Code owns it.
-- [ ] Check that it works when the same file is open in two editors (two `DocumentSync`s, each sees the other's edits as outside changes), and when the file is on a remote, WSL or virtual file system.
-- [ ] If web support is wanted: run the extension on vscode.dev using `@vscode/test-web`.
+- [x] **Large files.** Measured in headless Edge with the real webview bundle (a mix of headings, lists, tables, math, code and rules; `node` harness in the scratchpad, not in the repo): at 25,000 lines / 0.5 MB typing took about 27 ms and a cursor move 18 ms; at 5 MB (259,000 lines) 184 ms and 134 ms; at 15 MB 488 ms and 348 ms. The cause was the block field walking the whole tree on every keystroke and cursor move. It now keeps its decorations and recollects only the top-level blocks that can have changed (`blockPreview` in `blocks.ts`): around each edit (in the old and the new tree, widened until the two trees agree about the next block, since an opened code fence swallows what follows), around the old and new selection, and any part of the document the parser has reached since. Results: 0.5 MB 9 ms / 4 ms, 5 MB 33 ms / 8 ms, 15 MB 84 ms / 17 ms. A randomized test (`blockField.test.ts`: 24 seeds of 300 random edits, cursor moves and parse steps) checks that the result always equals a full rebuild; it found two real bugs (table cell positions were absolute and went stale when text above changed, so they now count from the start of the table; and blocks after an edit that change structure). Inline decorations were already limited to the visible part. Not changed: CodeMirror parses in the background with a budget of about 3 s of work per 30 s, so at 15 MB the end of the file can take a few seconds to be formatted after a jump there (5 MB: about 1 s to the middle).
+- [x] **IME input** (Chinese, Japanese, Korean): while a composition is under way both preview layers keep what they have, moved along with the typing, and catch up in one go when it ends (`composition.ts`: `composingField`, set from the composition events with a release on blur or on a key that is not part of a composition, so it cannot stay stuck; the inline plugin also checks `view.composing`). Checked with Edge's own composition events (`Input.imeSetComposition`: 'n', 'ni', '你', '你h', '你好', commit): the text came out right and the heading symbols revealed afterwards. Known: each composition update is sent to the host as its own edit, so the file briefly holds the pinyin and VS Code's undo has several steps.
+- [x] Chinese input checked by hand on Windows (the user, 2026-10-28: worked).
+- [ ] Still to try by hand: Japanese and Korean on Windows, and any IME on macOS, in a heading, in bold text and inside a table cell.
+- [x] Handle the webview being hidden and shown again without `retainContextWhenHidden`: on `ready` the host sends `init` again (that path already worked), and the selection and the scroll position (as the offset of the line at the top, so widgets of a different height do not matter) come back from `getState`/`setState` (`viewState.ts`, saved 250 ms after a change, checked against the new text's length). The mode is kept by the host. Checked in the browser harness: given a saved state the editor opens on the right line with the right text selected. Not yet seen by hiding a real tab in VS Code.
+- [x] Same file in two editors: `twoEditors.test.ts` runs two `DocumentSync`s on one document (each hears the other's edit as a `replace`, an edit based on an old version gets the real text back, `\r\n` is kept).
+- [x] Remote, WSL and virtual file systems, by reading the code: every file access goes through `vscode.workspace.fs` (images, export, saving pasted images); the one exception is PDF export, which prints with a browser installed where the extension runs and refuses a save location that is not a local file. Images next to a document on a virtual file system cannot be shown in a webview, which is a VS Code limit.
+- [ ] Try it by hand in a WSL or SSH window (and a virtual file system such as a GitHub repository) once.
+- [ ] If web support is wanted: run the extension on vscode.dev using `@vscode/test-web`. Not started; it would need the PDF export (a local browser) left out of the web build, and nobody has asked for it yet.
 
 ### Phase 7: Testing and release (2–3 days)
 - [ ] **Minimal-diff tests (the main promise, §3.6):** for every command and widget action, run it on each file in `test/corpus/` and check that only the expected lines changed. Also: open, type, undo all, save → the file is byte-for-byte unchanged.
@@ -333,6 +337,8 @@ MdEditorExt/
 
 ```jsonc
 "engines": { "vscode": "^1.74.0" },
+"activationEvents": [],
+"capabilities": { "untrustedWorkspaces": { "supported": true } },
 "main": "./dist/extension.js",
 "browser": "./dist/web/extension.js",
 "contributes": {

@@ -81,7 +81,7 @@ export class FrontMatterWidget extends WidgetType {
 }
 
 /** Where to continue editing after a cell edit has redrawn its table (Tab to the next cell). */
-let resume: { key: number; row: number; col: number } | undefined;
+let resume: { pos: number; row: number; col: number } | undefined;
 
 /**
  * A table. Clicking a cell edits that cell's text in place: while editing, the cell shows its
@@ -130,14 +130,16 @@ export class TableWidget extends WidgetType {
     data.rows.forEach((row, i) => addRow(tbody, row, 'td', i + 1));
     table.append(thead, tbody);
 
-    const key = data.ranges[0]?.[0]?.from ?? -1;
     const rangeOf = (row: number, col: number) => data.ranges[row]?.[col];
 
     const edit = (td: HTMLTableCellElement): void => {
       const row = Number(td.dataset.row);
       const col = Number(td.dataset.col);
-      const range = rangeOf(row, col);
-      if (!range) return;
+      const cell = rangeOf(row, col);
+      if (!cell) return;
+      // The cell ranges count from the start of the table, which moves when text above changes.
+      const origin = view.posAtDOM(table);
+      const range = { from: origin + cell.from, to: origin + cell.to };
       const original = view.state.doc.sliceString(range.from, range.to);
       const shown = [...td.childNodes];
       let finished = false;
@@ -163,7 +165,7 @@ export class TableWidget extends WidgetType {
         }
         if (change) {
           // The edit redraws the table; the new widget picks up where this one left off.
-          if (target) resume = { key, row: target[0], col: target[1] };
+          if (target) resume = { pos: origin, row: target[0], col: target[1] };
           view.dispatch({ changes: change, userEvent: 'input.type' });
         } else if (target) {
           edit(grid[target[0]][target[1]]);
@@ -215,10 +217,12 @@ export class TableWidget extends WidgetType {
       }
     });
 
-    if (resume?.key === key) {
-      const { row, col } = resume;
-      resume = undefined;
+    if (resume) {
       setTimeout(() => {
+        // Only the table that was being edited takes over, wherever it now is.
+        if (!resume || !table.isConnected || view.posAtDOM(table) !== resume.pos) return;
+        const { row, col } = resume;
+        resume = undefined;
         const next = grid[row]?.[col];
         if (next?.isConnected) edit(next);
       });

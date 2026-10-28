@@ -12,6 +12,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { composingField } from './composition';
 import { footnoteDefinitions, type FootnoteDefinition } from './footnotes';
 import { findFrontMatter } from './frontMatter';
 import { isTouched, readingFacet, revealSelection } from './reveal';
@@ -377,19 +378,29 @@ function build(view: EditorView): DecorationSet {
 export const inlinePreview = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    /** Set while an IME composition made this hold back; it catches up when that ends. */
+    held = false;
 
     constructor(view: EditorView) {
       this.decorations = build(view);
     }
 
     update(update: ViewUpdate) {
+      if (update.view.composing || update.state.field(composingField, false)) {
+        // Changing decorations under the text being composed can cancel the composition.
+        if (update.docChanged) this.decorations = this.decorations.map(update.changes);
+        this.held = true;
+        return;
+      }
       if (
+        this.held ||
         update.docChanged ||
         update.viewportChanged ||
         update.selectionSet ||
         update.startState.facet(readingFacet) !== update.state.facet(readingFacet) ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
+        this.held = false;
         this.decorations = build(update.view);
       }
     }

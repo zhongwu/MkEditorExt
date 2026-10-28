@@ -9,6 +9,7 @@ import { drawDiagrams } from './livePreview/renderWidgets';
 import './livePreview/shared';
 import { setMode as applyModeToEditor } from './modes';
 import { createToolbar } from './toolbar';
+import { readSavedView, restoreView, trackView } from './viewState';
 import { WebviewSync, minimalChange, normalizeLineEndings } from './sync';
 import './styles/editor.css';
 
@@ -157,6 +158,10 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       onImages: sendImages,
     });
     sync.reset(message.version);
+    // Back from being hidden: the cursor and scroll position as they were.
+    const saved = readSavedView(vscode.getState(), view.state.doc.length);
+    if (saved) restoreView(view, saved);
+    trackView(view, (state) => vscode.setState(state));
     view.focus();
     return;
   }

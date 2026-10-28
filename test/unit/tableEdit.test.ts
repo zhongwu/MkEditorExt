@@ -64,7 +64,8 @@ describe('table data ranges', () => {
     ensureSyntaxTree(state, doc.length, 5000);
     const table = collectBlocks(state, '').find((item) => item.type === 'table');
     if (table?.type !== 'table') throw new Error('no table');
-    const text = (r: { from: number; to: number }) => doc.slice(r.from, r.to);
+    const text = (r: { from: number; to: number }) =>
+      doc.slice(table.from + r.from, table.from + r.to);
     expect(table.data.ranges.map((row) => row.map(text))).toEqual([
       [' H1 ', ' H2 '],
       [' a ', ' b '],

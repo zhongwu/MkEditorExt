@@ -7,8 +7,9 @@
 
 import { syntaxTree } from '@codemirror/language';
 import { EditorState, Facet, StateField, type Range, type Text } from '@codemirror/state';
-import type { SyntaxNode } from '@lezer/common';
+import type { SyntaxNode, Tree } from '@lezer/common';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
+import { composingField, compositionEnded } from './composition';
 import { findFrontMatter } from './frontMatter';
 import { HtmlWidget } from './htmlWidget';
 import { resolveImageSrc } from './images';
@@ -29,7 +30,7 @@ export interface TableData {
   align: Align[];
   header: Span[][];
   rows: Span[][][];
-  /** Where each cell sits in the document: the header first, then each row. */
+  /** Where each cell sits, counted from the start of the table: the header first, then each row. */
   ranges: CellRange[][];
 }
 
@@ -137,7 +138,7 @@ function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
   // A row whose cells cannot be matched to the text is shown but not editable.
   const rangesOf = (row: SyntaxNode, count: number) => {
     const line = doc.lineAt(row.from);
-    const ranges = cellRanges(line.from, line.text);
+    const ranges = cellRanges(line.from - node.from, line.text);
     return ranges.length === count ? ranges : [];
   };
   return {
@@ -148,21 +149,31 @@ function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
   };
 }
 
-/** Everything the block live preview draws, given the text, the tree and the selection. */
-export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] {
+/**
+ * Everything the block live preview draws, given the text, the tree and the selection. With a
+ * `range`, only what is drawn for the top-level blocks inside it; the range must start and end
+ * on block boundaries (see `blockSpan`).
+ */
+export function collectBlocks(
+  state: EditorState,
+  baseUri: string,
+  range?: { from: number; to: number },
+): BlockItem[] {
   const items: BlockItem[] = [];
   const { doc } = state;
   const selection = revealSelection(state);
   const touched = (from: number, to: number) => isTouched(selection, from, to);
 
   const frontMatter = findFrontMatter(doc);
-  if (frontMatter && !touched(frontMatter.from, frontMatter.to)) {
+  if (frontMatter && (!range || range.from === 0) && !touched(frontMatter.from, frontMatter.to)) {
     items.push({ type: 'frontMatter', ...frontMatter });
   }
   const skipUntil = frontMatter?.to ?? -1;
   const renderHtml = state.facet(renderHtmlFacet);
 
   syntaxTree(state).iterate({
+    from: range?.from,
+    to: range?.to,
     enter: (ref) => {
       const node = ref.node;
       if (node.to <= skipUntil) return false;
@@ -265,6 +276,10 @@ export function collectBlocks(state: EditorState, baseUri: string): BlockItem[] 
 }
 
 export function toBlockDecorations(items: readonly BlockItem[], baseUri: string): DecorationSet {
+  return Decoration.set(blockRanges(items, baseUri), true);
+}
+
+function blockRanges(items: readonly BlockItem[], baseUri: string): Range<Decoration>[] {
   const ranges: Range<Decoration>[] = [];
   for (const item of items) {
     switch (item.type) {
@@ -332,26 +347,154 @@ export function toBlockDecorations(items: readonly BlockItem[], baseUri: string)
         break;
     }
   }
-  return Decoration.set(ranges, true);
+  return ranges;
 }
 
-/** The block live preview. `baseUri` is the document's folder as a webview URI, for images. */
+/** The top-level block (a direct child of the document) that has `pos` in it, if any. */
+function topLevelAt(tree: Tree, pos: number, side: -1 | 1): SyntaxNode | null {
+  let node: SyntaxNode = tree.resolveInner(pos, side);
+  while (node.parent?.parent) node = node.parent;
+  return node.parent ? node : null;
+}
+
+/** [from, to] widened to whole top-level blocks, so that a block is never cut in two. */
+export function blockSpan(tree: Tree, from: number, to: number): { from: number; to: number } {
+  let start = from;
+  let end = to;
+  for (const side of [1, -1] as const) {
+    start = Math.min(start, topLevelAt(tree, from, side)?.from ?? start);
+    end = Math.max(end, topLevelAt(tree, to, side)?.to ?? end);
+  }
+  return { from: start, to: end };
+}
+
+/** What the block field holds: the decorations, and how far the tree had reached for them. */
+interface BlockState {
+  decorations: DecorationSet;
+  parsed: number;
+}
+
+/**
+ * The block live preview. `baseUri` is the document's folder as a webview URI, for images.
+ *
+ * On a large file, drawing everything again on every keystroke and cursor move is too slow, so
+ * after the first pass only the top-level blocks that can have changed are collected again:
+ * those around an edit (before and after it), those the cursor left or entered, and any part
+ * of the document the parser has reached since.
+ */
 export function blockPreview(baseUri: string) {
-  const build = (state: EditorState) => toBlockDecorations(collectBlocks(state, baseUri), baseUri);
-  return StateField.define<DecorationSet>({
-    create: build,
+  const full = (state: EditorState): BlockState => ({
+    decorations: toBlockDecorations(collectBlocks(state, baseUri), baseUri),
+    parsed: syntaxTree(state).length,
+  });
+
+  return StateField.define<BlockState>({
+    create: full,
     update(value, tr) {
+      const { state, startState } = tr;
       if (
-        tr.docChanged ||
-        tr.selection ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
-        tr.startState.facet(renderHtmlFacet) !== tr.state.facet(renderHtmlFacet) ||
-        tr.startState.facet(readingFacet) !== tr.state.facet(readingFacet)
+        startState.facet(renderHtmlFacet) !== state.facet(renderHtmlFacet) ||
+        startState.facet(readingFacet) !== state.facet(readingFacet)
       ) {
-        return build(tr.state);
+        return full(state);
       }
-      return value;
+      if (compositionEnded(startState, state)) {
+        return full(state);
+      }
+      if (state.field(composingField, false)) {
+        // An IME composition is under way: keep what is drawn, moved along with the typing.
+        return { decorations: value.decorations.map(tr.changes), parsed: value.parsed };
+      }
+      const tree = syntaxTree(state);
+      const parsed = tr.docChanged ? tr.changes.mapPos(value.parsed, -1) : value.parsed;
+      const grew = tree.length > parsed;
+      if (!tr.docChanged && !tr.selection && !grew) {
+        return value;
+      }
+
+      const length = state.doc.length;
+      const clamp = (pos: number) => Math.min(Math.max(pos, 0), length);
+      const dirty: { from: number; to: number }[] = [];
+      // Touching counts the edges of a block, so look one character beyond the selection.
+      const aroundSelection = (from: number, to: number) =>
+        dirty.push(blockSpan(tree, clamp(from - 1), clamp(to + 1)));
+      for (const range of startState.selection.ranges) {
+        aroundSelection(tr.changes.mapPos(range.from, -1), tr.changes.mapPos(range.to, 1));
+      }
+      for (const range of state.selection.ranges) {
+        aroundSelection(range.from, range.to);
+      }
+      const oldTree = syntaxTree(startState);
+      tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+        dirty.push(blockSpan(tree, fromB, toB));
+        // The blocks the old text had there may have been joined or split by the edit.
+        const before = blockSpan(oldTree, fromA, toA);
+        dirty.push({
+          from: clamp(tr.changes.mapPos(before.from, -1)),
+          to: clamp(tr.changes.mapPos(before.to, 1)),
+        });
+      });
+      const frontMatter = findFrontMatter(state.doc);
+      if (frontMatter) dirty.push(blockSpan(tree, 0, frontMatter.to));
+      if (grew) dirty.push(blockSpan(tree, clamp(parsed), tree.length));
+
+      // An edit can join or split blocks, so a span grows until no widget made earlier and no
+      // block in the new tree reaches out of it.
+      const previous = value.decorations.map(tr.changes);
+      const undo = tr.changes.invertedDesc;
+      for (const span of dirty) {
+        for (let grown = true; grown;) {
+          grown = false;
+          previous.between(span.from, span.to, (from, to) => {
+            if (from < span.from || to > span.to) grown = true;
+            span.from = Math.min(span.from, from);
+            span.to = Math.max(span.to, to);
+          });
+          const wide = blockSpan(tree, span.from, span.to);
+          if (wide.from < span.from || wide.to > span.to) grown = true;
+          span.from = Math.min(span.from, wide.from);
+          span.to = Math.max(span.to, wide.to);
+          // Blocks after an edit can change too (an opened code fence swallows what follows),
+          // so go on until the old tree and the new one agree about the next block.
+          const next = tr.docChanged ? tree.topNode.childAfter(span.to) : null;
+          if (next) {
+            const oldFrom = undo.mapPos(next.from, -1);
+            // Beyond what the old tree had parsed there was nothing drawn to get wrong.
+            const old = oldFrom < oldTree.length ? topLevelAt(oldTree, oldFrom, 1) : undefined;
+            const agrees =
+              old === undefined ||
+              (old !== null &&
+                old.from === oldFrom &&
+                old.to === undo.mapPos(next.to, 1) &&
+                old.name === next.name);
+            if (!agrees) {
+              span.to = next.to;
+              grown = true;
+            }
+          }
+        }
+      }
+
+      dirty.sort((a, b) => a.from - b.from);
+      const spans: { from: number; to: number }[] = [];
+      for (const span of dirty) {
+        const last = spans[spans.length - 1];
+        if (last && span.from <= last.to) last.to = Math.max(last.to, span.to);
+        else spans.push({ ...span });
+      }
+
+      let decorations = previous;
+      for (const { from, to } of spans) {
+        decorations = decorations.update({
+          filter: (start, end) => start < from || end > to,
+          filterFrom: from,
+          filterTo: to,
+          add: blockRanges(collectBlocks(state, baseUri, { from, to }), baseUri),
+          sort: true,
+        });
+      }
+      return { decorations, parsed: tree.length };
     },
-    provide: (field) => EditorView.decorations.from(field),
+    provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
   });
 }

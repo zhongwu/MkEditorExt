@@ -5,6 +5,7 @@ import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { Mode } from '../src/protocol';
 import { blockPreview } from './livePreview/blocks';
+import { compositionTracking } from './livePreview/composition';
 import { inlinePreview } from './livePreview/inline';
 import { readingFacet } from './livePreview/reveal';
 
@@ -13,7 +14,7 @@ const readingCompartment = new Compartment();
 
 /** The preview decorations, present in Live and Reading mode but not in Source mode. */
 function preview(mode: Mode, baseUri: string): Extension {
-  return mode === 'source' ? [] : [inlinePreview, blockPreview(baseUri)];
+  return mode === 'source' ? [] : [compositionTracking, inlinePreview, blockPreview(baseUri)];
 }
 
 /** Reading mode: symbols stay hidden wherever the selection is, and nothing can be typed. */
