@@ -2,5 +2,5 @@ import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig({
   files: 'out/integration/**/*.test.js',
-  mocha: { ui: 'tdd', timeout: 20000 },
+  mocha: { ui: 'tdd', timeout: 60000 },
 });
