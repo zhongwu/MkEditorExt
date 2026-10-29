@@ -98,6 +98,18 @@ function selectedLines(state: EditorState) {
   return lines.length > 1 ? lines.filter((line) => line.text.trim() !== '') : lines;
 }
 
+/**
+ * The changes, with a cursor that sat where a marker is added moved to after the marker, so the
+ * user can type straight away. (By default a cursor at the start of a line stays before it.)
+ */
+function withCursorAfterMarker(state: EditorState, changes: ChangeSpec[]): TransactionSpec {
+  const set = state.changes(changes);
+  const ranges = state.selection.ranges.map((range) =>
+    range.empty ? EditorSelection.cursor(set.mapPos(range.head, 1)) : range.map(set),
+  );
+  return { changes: set, selection: EditorSelection.create(ranges, state.selection.mainIndex) };
+}
+
 /** `# ` to `###### ` at the start of every selected line; level 0 removes it. */
 export function setHeading(state: EditorState, level: number): TransactionSpec {
   const lines = selectedLines(state);
@@ -112,7 +124,7 @@ export function setHeading(state: EditorState, level: number): TransactionSpec {
       changes.push({ from: line.from, to: line.from + existing.length, insert });
     }
   }
-  return { changes };
+  return withCursorAfterMarker(state, changes);
 }
 
 export type LineKind = 'quote' | 'bullet' | 'number' | 'task';
@@ -138,7 +150,7 @@ export function toggleLineKind(state: EditorState, kind: LineKind): TransactionS
         changes.push({ from: line.from, insert: '> ' });
       }
     }
-    return { changes };
+    return withCursorAfterMarker(state, changes);
   }
   const allSame = lines.every((line) => {
     const match = LIST_MARKER.exec(line.text);
@@ -157,7 +169,7 @@ export function toggleLineKind(state: EditorState, kind: LineKind): TransactionS
     const marker = kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${number++}. `;
     changes.push({ from, to: existingEnd, insert: marker });
   }
-  return { changes };
+  return withCursorAfterMarker(state, changes);
 }
 
 const TASK = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/;

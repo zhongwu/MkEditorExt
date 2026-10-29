@@ -39,6 +39,14 @@ function apply(state: EditorState, spec: TransactionSpec): string {
   return state.update(spec).state.doc.toString();
 }
 
+/** The text after the command with `@` where the cursor ended up. */
+function cursorAfter(state: EditorState, spec: TransactionSpec): string {
+  const next = state.update(spec).state;
+  const head = next.selection.main.head;
+  const text = next.doc.toString();
+  return text.slice(0, head) + '@' + text.slice(head);
+}
+
 function selected(state: EditorState, spec: TransactionSpec): string {
   const next = state.update(spec).state;
   const { from, to } = next.selection.main;
@@ -107,6 +115,23 @@ describe('setHeading', () => {
     const state = make('[[one\n\ntwo]]');
     expect(apply(state, setHeading(state, 1))).toBe('# one\n\n# two');
   });
+
+  it('puts a cursor on an empty line after the marker, ready to type', () => {
+    const state = make('@');
+    expect(cursorAfter(state, setHeading(state, 1))).toBe('# @');
+  });
+
+  it('puts a cursor at the start of a line after the marker, and keeps one in the text', () => {
+    const start = make('@some text');
+    expect(cursorAfter(start, setHeading(start, 2))).toBe('## @some text');
+    const inside = make('some @text');
+    expect(cursorAfter(inside, setHeading(inside, 2))).toBe('## some @text');
+  });
+
+  it('moves a cursor inside the old marker to the start of the text when it is removed', () => {
+    const state = make('#@ some text');
+    expect(cursorAfter(state, setHeading(state, 0))).toBe('@some text');
+  });
 });
 
 describe('toggleLineKind', () => {
@@ -115,6 +140,18 @@ describe('toggleLineKind', () => {
     expect(apply(state, toggleLineKind(state, 'quote'))).toBe('> a\n> b');
     const again = make('[[> a\n> b]]');
     expect(apply(again, toggleLineKind(again, 'quote'))).toBe('a\nb');
+  });
+
+  it('puts a cursor on an empty line after the list or quote marker', () => {
+    for (const [kind, text] of [
+      ['bullet', '- @'],
+      ['number', '1. @'],
+      ['task', '- [ ] @'],
+      ['quote', '> @'],
+    ] as const) {
+      const state = make('@');
+      expect(cursorAfter(state, toggleLineKind(state, kind))).toBe(text);
+    }
   });
 
   it('makes numbered lists count up and keeps indentation', () => {

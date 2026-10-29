@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 (2026-10-28)
+
+- After a heading, list or quote button, the cursor lands after the marker, so you can type straight away.
+
 ## 0.1.2 (2026-10-28)
 
 - The README shows how editing works, and examples of math and diagrams.
