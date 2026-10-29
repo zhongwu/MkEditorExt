@@ -260,6 +260,12 @@ export class ImageWidget extends WidgetType {
   }
 }
 
+/** The one-character edit that ticks or unticks a task: `[ ]` <-> `[x]` (PLAN.md §3.6). */
+export function checkboxChange(start: number, offset: number, checked: boolean) {
+  const pos = start + offset;
+  return { from: pos, to: pos + 1, insert: checked ? ' ' : 'x' };
+}
+
 export class CheckboxWidget extends WidgetType {
   constructor(
     readonly checked: boolean,
@@ -278,10 +284,8 @@ export class CheckboxWidget extends WidgetType {
     box.setAttribute('aria-checked', String(this.checked));
     box.setAttribute('aria-label', 'Task');
     const toggle = () => {
-      // A one-character edit: [ ] <-> [x]. Nothing else in the line changes (PLAN.md §3.6).
       if (view.state.readOnly) return;
-      const pos = view.posAtDOM(box) + this.offset;
-      view.dispatch({ changes: { from: pos, to: pos + 1, insert: this.checked ? ' ' : 'x' } });
+      view.dispatch({ changes: checkboxChange(view.posAtDOM(box), this.offset, this.checked) });
     };
     box.addEventListener('mousedown', (event) => {
       event.preventDefault();

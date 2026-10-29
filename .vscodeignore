@@ -18,3 +18,6 @@ esbuild.mjs
 eslint.config.mjs
 tsconfig.json
 vitest.config.mts
+images/**
+!images/icon.png
+TESTING.md

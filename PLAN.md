@@ -298,15 +298,15 @@ MdEditorExt/
 - [ ] If web support is wanted: run the extension on vscode.dev using `@vscode/test-web`. Not started; it would need the PDF export (a local browser) left out of the web build, and nobody has asked for it yet.
 
 ### Phase 7: Testing and release (2–3 days)
-- [ ] **Minimal-diff tests (the main promise, §3.6):** for every command and widget action, run it on each file in `test/corpus/` and check that only the expected lines changed. Also: open, type, undo all, save → the file is byte-for-byte unchanged.
-- [ ] **Unit tests:** anything not already covered (block widget ranges, commands, math parser extension).
-- [ ] **Host integration tests (`@vscode/test-electron`):**
-  1. Open a file with the custom editor.
-  2. Drive `DocumentSync` with fake webview messages.
-  3. Check `document.getText()`, then save, undo and redo.
-- [ ] **End-to-end tests (`vscode-extension-tester`, a few only):** type into the webview, check that symbols hide and reveal, toggle a checkbox, undo with Ctrl+Z, and edit a `\r\n` file.
-- [ ] **Manual checklist:** all three themes, non-ASCII text and emoji (characters that take two UTF-16 units), IME input, very long lines, an empty file, a read-only file, and screen-reader basics in Source mode.
-- [ ] Write the README with GIFs. Lead with the minimal-diff promise and show a side-by-side `git diff` from Phase 0. Add a CHANGELOG, a 128×128 icon and Marketplace keywords.
+- [x] **Minimal-diff tests (the main promise, §3.6):** `minimalDiff.test.ts` runs all 14 toolbar commands at about 200 places in each corpus file (cursors, a word, a block of lines), sends each result through the real path (CodeMirror change, line/character change, applied to the file's own text) and checks that only the selected lines changed, that wrapping adds or removes only the marker characters, that every checkbox toggle changes one character, that a table cell edit changes only its own line, and that `\r\n` files keep `\r\n`. `test/integration/corpus.test.ts` opens each corpus file in the real custom editor, checks that opening does not dirty it, types, undoes, saves and compares the bytes with the original.
+- [x] **Unit tests:** reviewed what exists (block widget and table cell ranges, commands, math and footnote parsers, sync, headings, links, images, export, PDF browser lookup, the block field, composition, saved view). What has no unit test is code that needs the `vscode` module or a browser: `exportCommand.ts`, `saveImage.ts` and `printToPdf`. They are covered by the manual checklist and, for PDF, by a run against Edge.
+- [x] **Host integration tests (`@vscode/test-electron`):** `customEditor.test.ts` and `corpus.test.ts` open files with the custom editor, check `document.getText()`, undo, redo and save, and keep `\r\n`. The webview cannot be sent messages from a test, so driving `DocumentSync` with fake webview messages is done in unit tests (`DocumentSync.test.ts`, `twoEditors.test.ts`, a randomized sync simulation).
+- [ ] **End-to-end tests (`vscode-extension-tester`, a few only):** type into the webview, check that symbols hide and reveal, toggle a checkbox, undo with Ctrl+Z, and edit a `\r\n` file. Not started: it needs Selenium, a downloaded ChromeDriver and a display on CI. The real webview bundle is exercised in headless Edge by scripts that are not in the repository (typing, tables, IME events, large files), which could become a repository test if wanted.
+- [x] **Manual checklist** written: `TESTING.md`.
+- [ ] Go through `TESTING.md` once before the first release.
+- [x] README rewritten for release (the minimal-diff promise first, with a diff and a screenshot), `CHANGELOG.md`, a 256×256 icon (`images/icon.png`) and keywords.
+- [x] `LICENSE`: MIT, copyright 2026 zhong wu (from the git user name).
+- [ ] GIFs for the README (they need a screen recording).
 - [ ] Publish with `vsce package` and `vsce publish`, then with `ovsx publish` (this needs an Open VSX namespace).
 
 **Total for one developer: about 5 weeks.**
