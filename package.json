@@ -2,9 +2,8 @@
   "name": "mk-editor-ext",
   "displayName": "Markdown Live Editor",
   "description": "Live-preview Markdown editor that never rewrites parts of the file you didn't touch.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "zhongwu",
-  "private": true,
   "license": "MIT",
   "repository": {
     "type": "git",
