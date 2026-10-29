@@ -242,7 +242,8 @@ export const formattingKeymap: readonly KeyBinding[] = [
   { key: 'Mod-i', run: commands.italic },
   { key: 'Mod-Shift-x', run: commands.strike },
   { key: 'Mod-e', run: commands.code },
-  { key: 'Mod-k', run: commands.link },
+  // Not Mod-k: that is the first key of VS Code's chords, such as Ctrl+K Ctrl+T.
+  { key: 'Mod-Alt-k', run: commands.link },
   { key: 'Mod-Alt-1', run: commands.h1 },
   { key: 'Mod-Alt-2', run: commands.h2 },
   { key: 'Mod-Alt-3', run: commands.h3 },

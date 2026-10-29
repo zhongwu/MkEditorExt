@@ -40,7 +40,8 @@ Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then *
 
 | Keys | Does |
 |---|---|
-| `Ctrl/Cmd+B`, `I`, `E`, `K` | Bold, italic, inline code, link |
+| `Ctrl/Cmd+B`, `I`, `E` | Bold, italic, inline code |
+| `Ctrl/Cmd+Alt+K` | Link |
 | `Ctrl/Cmd+Shift+X` | Strikethrough |
 | `Ctrl/Cmd+Alt+1` – `3` | Heading 1 – 3 |
 | `Ctrl/Cmd+Shift+7`, `8`, `9` | Numbered list, bulleted list, quote |

@@ -22,7 +22,9 @@ export const livePreviewTheme = EditorView.theme({
   '.cm-md-code': {
     fontFamily: codeFont,
     fontSize: '0.92em',
-    backgroundColor: 'var(--vscode-textCodeBlock-background)',
+    // The colour that goes with textPreformat-foreground, which colours the code text.
+    backgroundColor:
+      'var(--vscode-textPreformat-background, var(--vscode-textCodeBlock-background))',
     borderRadius: '3px',
     padding: '0 2px',
   },
@@ -91,7 +93,8 @@ export const livePreviewTheme = EditorView.theme({
   '.cm-md-table code': {
     fontFamily: codeFont,
     fontSize: '0.92em',
-    backgroundColor: 'var(--vscode-textCodeBlock-background)',
+    backgroundColor:
+      'var(--vscode-textPreformat-background,var(--vscode-textCodeBlock-background))',
   },
 
   '.cm-md-frontmatter': {

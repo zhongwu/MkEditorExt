@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-10-28)
+
+- The link shortcut is now `Ctrl/Cmd+Alt+K`. `Ctrl+K` used to insert `[](url)`, which broke VS Code's `Ctrl+K` chords such as `Ctrl+K Ctrl+T`.
+- Inline code is readable in light themes.
+
 ## 0.1.0 (2026-10-28)
 
 The first release.

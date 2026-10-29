@@ -264,7 +264,7 @@ MdEditorExt/
 - [ ] **Done when:** the files in `test/corpus/` all display correctly in Live mode, and every block shows its source when the cursor enters it.
 
 ### Phase 4: Editing helpers and modes (3 days)
-- [x] **Toolbar and shortcuts:** bold, italic, strikethrough, code, headings 1–3, bullet, numbered and task lists, quote, link, table (`webview/commands.ts`, `webview/toolbar.ts`). Each is a pure function from state to transaction that changes only the markers it adds or removes (§3.6). Shortcuts: Ctrl/Cmd+B, I, E, K, Shift+X, Alt+1–3, Shift+7/8/9.
+- [x] **Toolbar and shortcuts:** bold, italic, strikethrough, code, headings 1–3, bullet, numbered and task lists, quote, link, table (`webview/commands.ts`, `webview/toolbar.ts`). Each is a pure function from state to transaction that changes only the markers it adds or removes (§3.6). Shortcuts: Ctrl/Cmd+B, I, E, Alt+K (link), Shift+X, Alt+1–3, Shift+7/8/9. Link is not Ctrl+K, which would swallow VS Code's Ctrl+K chords (found 2026-10-28 when Ctrl+K Ctrl+T inserted `[](url)`).
 - [x] **Lists:** Enter continues a list or task list and Backspace on an empty item removes it. Both come from `markdown()` (its default keymap), and a unit test covers them. The first Enter on an empty second item starts a loose list; the next Enter ends the list. That is the package's behavior and is left as is.
 - [x] **Paste a URL over selected text** to turn it into a link. This also comes from `markdown()` (`pasteURLAsLink`).
 - [x] **Paste or drag in images:**
