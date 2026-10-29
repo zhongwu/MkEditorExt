@@ -1,6 +1,6 @@
 {
   "name": "mk-editor-ext",
-  "displayName": "Markdown Live Editor",
+  "displayName": "Markdown Minimal Diff Editor",
   "description": "Live-preview Markdown editor that never rewrites parts of the file you didn't touch.",
   "version": "0.1.0",
   "publisher": "zhongwu",
@@ -39,7 +39,7 @@
     "customEditors": [
       {
         "viewType": "mdEditor.editor",
-        "displayName": "Markdown Live Editor",
+        "displayName": "Markdown Minimal Diff Editor",
         "selector": [
           {
             "filenamePattern": "*.md"
@@ -54,38 +54,38 @@
     "commands": [
       {
         "command": "mdEditor.openEditor",
-        "title": "Open in Markdown Live Editor",
-        "category": "Markdown Live Editor"
+        "title": "Open in Markdown Minimal Diff Editor",
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.setMode",
         "title": "Switch Mode (Live / Source / Reading)",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.toggleSource",
         "title": "Toggle Source Mode",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.goToHeading",
         "title": "Go to Heading",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.insertImage",
         "title": "Insert Image",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.exportHtml",
         "title": "Export to HTML",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       },
       {
         "command": "mdEditor.exportPdf",
         "title": "Export to PDF",
-        "category": "Markdown Live Editor"
+        "category": "Markdown Minimal Diff Editor"
       }
     ],
     "keybindings": [
@@ -118,7 +118,7 @@
       ]
     },
     "configuration": {
-      "title": "Markdown Live Editor",
+      "title": "Markdown Minimal Diff Editor",
       "properties": {
         "mdEditor.defaultMode": {
           "type": "string",

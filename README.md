@@ -1,4 +1,4 @@
-# Markdown Live Editor
+# Markdown Minimal Diff Editor
 
 A live-preview Markdown editor for VS Code. Formatting is shown rendered as you type, and it **never rewrites parts of the file you didn't touch**.
 
@@ -34,7 +34,7 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 
 ## Using it
 
-Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Live Editor**. It never replaces VS Code's default editor unless you make it the default. You can also run **Markdown Live Editor: Open in Markdown Live Editor** from the Command Palette.
+Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Minimal Diff Editor**. It never replaces VS Code's default editor unless you make it the default. You can also run **Markdown Minimal Diff Editor: Open in Markdown Minimal Diff Editor** from the Command Palette.
 
 ### Shortcuts
 
@@ -85,7 +85,7 @@ npm run lint               # ESLint
 npm run typecheck          # TypeScript
 ```
 
-To try it, open this folder in VS Code and press **F5**. In the new window, open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Live Editor**.
+To try it, open this folder in VS Code and press **F5**. In the new window, open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Minimal Diff Editor**.
 
 | Folder | Contents |
 |---|---|

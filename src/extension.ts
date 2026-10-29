@@ -12,8 +12,8 @@ const MODE_CHOICES: { label: string; description: string; mode: Mode }[] = [
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new MdEditorProvider(context.extensionUri, context.workspaceState);
   const needsEditor = () =>
-    vscode.window.showInformationMessage('Click in a Markdown Live Editor tab first.');
-  // Exports the focused Markdown Live Editor, or else the Markdown file in the text editor.
+    vscode.window.showInformationMessage('Click in a Markdown Minimal Diff Editor tab first.');
+  // Exports the focused Markdown Minimal Diff Editor, or else the Markdown file in the text editor.
   const runExport = (run: typeof exportHtml) => {
     const textEditor = vscode.window.activeTextEditor;
     const document =
@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext): void {
     provider.register(),
     vscode.commands.registerCommand('mdEditor.setMode', async () => {
       const choice = await vscode.window.showQuickPick(MODE_CHOICES, {
-        title: 'Markdown Live Editor mode',
+        title: 'Markdown Minimal Diff Editor mode',
       });
       if (choice && !provider.setActiveMode(choice.mode)) {
         void needsEditor();

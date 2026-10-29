@@ -23,7 +23,7 @@ async function waitFor(check: () => boolean, what: string): Promise<void> {
   throw new Error(`Timed out waiting for ${what}`);
 }
 
-suite('Markdown Live Editor', () => {
+suite('Markdown Minimal Diff Editor', () => {
   teardown(() => vscode.commands.executeCommand('workbench.action.closeAllEditors'));
 
   test('opens .md files with the custom editor', async () => {

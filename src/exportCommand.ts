@@ -85,7 +85,7 @@ async function buildPage(
     void vscode.window.showWarningMessage(
       drawn
         ? 'Some Mermaid diagrams could not be drawn; they are exported as code.'
-        : 'Mermaid diagrams are exported as code. Export from the Markdown Live Editor to draw them.',
+        : 'Mermaid diagrams are exported as code. Export from the Markdown Minimal Diff Editor to draw them.',
     );
   }
   const hasMath = text.includes('$') || /^\s*(`{3,}|~{3,})\s*math\b/im.test(text);

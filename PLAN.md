@@ -344,7 +344,7 @@ MdEditorExt/
 "contributes": {
   "customEditors": [{
     "viewType": "mdEditor.editor",
-    "displayName": "Markdown Live Editor",
+    "displayName": "Markdown Minimal Diff Editor",
     "selector": [
       { "filenamePattern": "*.md" },
       { "filenamePattern": "*.markdown" }
@@ -352,10 +352,10 @@ MdEditorExt/
     "priority": "option"
   }],
   "commands": [
-    { "command": "mdEditor.openEditor", "title": "Open in Markdown Live Editor" },
-    { "command": "mdEditor.setMode", "title": "Markdown Live Editor: Switch Mode (Live / Source / Reading)" },
-    { "command": "mdEditor.exportHtml", "title": "Markdown Live Editor: Export to HTML" },
-    { "command": "mdEditor.exportPdf", "title": "Markdown Live Editor: Export to PDF" }
+    { "command": "mdEditor.openEditor", "title": "Open in Markdown Minimal Diff Editor" },
+    { "command": "mdEditor.setMode", "title": "Markdown Minimal Diff Editor: Switch Mode (Live / Source / Reading)" },
+    { "command": "mdEditor.exportHtml", "title": "Markdown Minimal Diff Editor: Export to HTML" },
+    { "command": "mdEditor.exportPdf", "title": "Markdown Minimal Diff Editor: Export to PDF" }
   ],
   "configuration": { "properties": {
     "mdEditor.defaultMode": { "type": "string", "enum": ["live", "source", "reading"], "default": "live" },
