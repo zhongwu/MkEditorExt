@@ -15,6 +15,10 @@ This extension edits the file's text directly and draws the rendered look over i
 +Some ***bold*** text
 ```
 
+Here is a recording of the editor. The panel on the right is the diff built from the edits the editor sends to the file: making a word italic changes one line by two characters, and ticking a task changes one character.
+
+![The editor next to a diff: making a word italic adds two asterisks, and ticking a task changes a space to an x](images/clean-diff.gif)
+
 Everything else in the file stays as it was, including your line endings (`\r\n` files stay `\r\n`). This is checked by tests on every command and widget action, and by a test that opens each sample file, types, undoes and saves, and compares the bytes.
 
 ## Features
@@ -36,13 +40,9 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 
 You type in the document itself. There is no separate preview pane. Formatting is drawn over your text, and the Markdown symbols reappear where the cursor is, so you can edit them.
 
-With the cursor on another line, the formatting is drawn and the symbols are hidden:
+With the cursor on another line, the formatting is drawn and the symbols are hidden. Click into bold, italic or link text and its symbols appear. Move away and they hide again:
 
-![A paragraph with bold, italic and a link, a task list and a table, all drawn without their Markdown symbols](images/edit-symbols-hidden.png)
-
-Click into the bold text and its `**` markers appear. Move away and they hide again:
-
-![The same paragraph with the cursor in the bold text, showing the ** markers around it](images/edit-symbols-shown.png)
+![Clicking into bold, italic and link text shows their Markdown symbols, and moving away hides them](images/symbols.gif)
 
 - **Format text:** select it and use the toolbar buttons or the shortcuts below.
 - **Tasks:** click a checkbox to tick or untick it, or press `Ctrl/Cmd+Enter` on the line.
@@ -50,6 +50,10 @@ Click into the bold text and its `**` markers appear. Move away and they hide ag
 - **Lists:** `Enter` continues a list, and `Enter` on an empty item ends it.
 - **Pictures:** paste or drop an image, or use the Image button.
 - **Change mode:** **Live**, **Source** and **Reading** are in the top right of the editor.
+
+Editing a table: click a cell, type, and press `Tab` for the next cell.
+
+![Typing in one table cell, then pressing Tab and typing in the next](images/table-editing.gif)
 
 ## Math and diagrams
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 (2026-10-28)
+
+- The README has animated examples of the clean diff, the symbols at the cursor and table editing.
+
 ## 0.1.3 (2026-10-28)
 
 - After a heading, list or quote button, the cursor lands after the marker, so you can type straight away.
