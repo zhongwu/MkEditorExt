@@ -32,6 +32,50 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 - Works with VS Code's own save, undo and redo, the unsaved-changes marker and Git, and in remote windows (checked in WSL).
 - Follows your VS Code theme (light, dark and high contrast) and fonts. Raw HTML is shown as source unless you turn on rendering, and then it is sanitized.
 
+## How editing works
+
+You type in the document itself. There is no separate preview pane. Formatting is drawn over your text, and the Markdown symbols reappear where the cursor is, so you can edit them.
+
+With the cursor on another line, the formatting is drawn and the symbols are hidden:
+
+![A paragraph with bold, italic and a link, a task list and a table, all drawn without their Markdown symbols](images/edit-symbols-hidden.png)
+
+Click into the bold text and its `**` markers appear. Move away and they hide again:
+
+![The same paragraph with the cursor in the bold text, showing the ** markers around it](images/edit-symbols-shown.png)
+
+- **Format text:** select it and use the toolbar buttons or the shortcuts below.
+- **Tasks:** click a checkbox to tick or untick it, or press `Ctrl/Cmd+Enter` on the line.
+- **Tables:** click a cell and type. `Tab` moves to the next cell. Move the cursor into the table with the arrow keys to see its Markdown source.
+- **Lists:** `Enter` continues a list, and `Enter` on an empty item ends it.
+- **Pictures:** paste or drop an image, or use the Image button.
+- **Change mode:** **Live**, **Source** and **Reading** are in the top right of the editor.
+
+## Math and diagrams
+
+Write math between `$` signs, or between `$$` lines for a block. Draw a diagram in a fenced block marked `mermaid`:
+
+````markdown
+Inline math sits in a sentence: $E = mc^2$.
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$
+
+```mermaid
+graph LR
+  A[Open file] --> B{Markdown?}
+  B -- yes --> C[Live preview]
+  B -- no --> D[Text editor]
+```
+````
+
+They are drawn in place, in the colours of your VS Code theme:
+
+![KaTeX math, a flowchart and a sequence diagram, drawn in the editor](images/math-and-diagrams.png)
+
+Click a formula or diagram to see and edit its source. A formula or diagram with a mistake shows the error and keeps your text.
+
 ## Using it
 
 Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Minimal Diff Editor**. It never replaces VS Code's default editor unless you make it the default. You can also run **Markdown Minimal Diff Editor: Open in Markdown Minimal Diff Editor** from the Command Palette.

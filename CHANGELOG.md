@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 (2026-10-28)
+
+- The README shows how editing works, and examples of math and diagrams.
+
 ## 0.1.1 (2026-10-28)
 
 - The link shortcut is now `Ctrl/Cmd+Alt+K`. `Ctrl+K` used to insert `[](url)`, which broke VS Code's `Ctrl+K` chords such as `Ctrl+K Ctrl+T`.

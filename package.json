@@ -2,7 +2,7 @@
   "name": "mk-editor-ext",
   "displayName": "Markdown Minimal Diff Editor",
   "description": "Live-preview Markdown editor that never rewrites parts of the file you didn't touch.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "zhongwu",
   "license": "MIT",
   "repository": {
