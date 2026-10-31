@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 (2026-10-30)
+
+- The extension is also on Open VSX, for VSCodium, Cursor and other editors that use it.
+- The README says that VS Code's Outline view and breadcrumbs stay empty in this editor, and to use Go to Heading instead.
+
 ## 0.1.4 (2026-10-28)
 
 - The README has animated examples of the clean diff, the symbols at the cursor and table editing.
