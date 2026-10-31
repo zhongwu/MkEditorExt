@@ -48,17 +48,30 @@ A `CustomTextEditorProvider` whose webview runs CodeMirror 6. VS Code's `TextDoc
 
 ## 3. Architecture
 
-```
-┌──────────── Extension Host ───────────────────┐        ┌──────────── Webview (browser) ─────────────┐
-│ extension.ts  → registers provider & commands │        │ main.ts                                    │
-│ MdEditorProvider (CustomTextEditorProvider)   │        │  ├─ CodeMirror 6 (no history)              │
-│  └─ creates one DocumentSync per open editor  │◄──────►│  ├─ sync.ts (one edit in flight)           │
-│ DocumentSync (no direct vscode.window use)    │ post-  │  ├─ markdownLang (Lezer + GFM + math)      │
-│  ├─ owns vscode.TextDocument (source of truth)│ Message│  ├─ livePreview/ (decorations + widgets)   │
-│  ├─ applies edits one at a time               │        │  ├─ commands (toolbar, shortcuts)          │
-│  └─ sends outside changes → webview           │        │  └─ modes (Live / Source / Reading)        │
-│ images base URI, paste-image writes, export   │        │                                            │
-└───────────────────────────────────────────────┘        └────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph host["Extension host (Node)"]
+    direction TB
+    H1["extension.ts<br/>registers the provider and commands"]
+    H2["MdEditorProvider<br/>one DocumentSync per open editor"]
+    H3["DocumentSync<br/>owns the TextDocument, applies edits one at a time,<br/>sends outside changes to the webview"]
+    H4["Images, export, PDF"]
+    H1 --> H2 --> H3
+    H2 --> H4
+  end
+  subgraph web["Webview (browser)"]
+    direction TB
+    W1["main.ts"]
+    W2["CodeMirror 6 (no history of its own)"]
+    W3["sync.ts<br/>one edit in flight"]
+    W4["livePreview/<br/>decorations and widgets"]
+    W5["commands, toolbar, modes<br/>Live, Source, Reading"]
+    W1 --> W2
+    W2 --- W3
+    W2 --- W4
+    W2 --- W5
+  end
+  host <-->|postMessage| web
 ```
 
 `DocumentSync` takes the document, a function that applies edits and a function that posts messages, so it can be unit-tested with fakes instead of a real webview.
@@ -178,38 +191,54 @@ script-src 'nonce-${nonce}';
 
 ## 4. Project layout
 
-```
-MdEditorExt/
-├─ package.json             # contributes: customEditors, commands, configuration, keybindings
-├─ esbuild.mjs              # bundles: extension (node + browser) + webview (browser)
-├─ src/
-│  ├─ extension.ts
-│  ├─ MdEditorProvider.ts   # webview setup, HTML/CSP, creates DocumentSync
-│  ├─ DocumentSync.ts       # versioning, edit queue, own/outside change detection (§3.4)
-│  ├─ protocol.ts           # shared message types (§3.2)
-│  ├─ images.ts             # writes pasted images with workspace.fs
-│  ├─ export.ts             # markdown-it → standalone HTML
-│  └─ util/{nonce,uri,positions}.ts
-├─ webview/
-│  ├─ main.ts
-│  ├─ editor.ts             # CodeMirror setup (no history; undo/redo keymap → host)
-│  ├─ sync.ts               # one edit in flight, compose pending, replace with prefix/suffix diff
-│  ├─ markdownLang.ts       # Lezer Markdown + GFM + math extension
-│  ├─ livePreview/
-│  │  ├─ reveal.ts          # which nodes the selection touches
-│  │  ├─ inline.ts          # ViewPlugin: marks + hidden syntax
-│  │  ├─ blocks.ts          # StateField: block widgets + atomic ranges
-│  │  └─ widgets/{image,checkbox,table,math,mermaid,frontMatter}.ts
-│  ├─ commands.ts           # toolbar + shortcuts, minimal-edit rule (§3.6)
-│  ├─ modes.ts              # Live / Source / Reading
-│  └─ styles/{editor,livePreview,theme}.css
-├─ test/
-│  ├─ unit/
-│  ├─ integration/
-│  ├─ e2e/
-│  └─ corpus/               # sample .md files for the minimal-diff tests
-└─ media/icon.png
-```
+- **📁 MdEditorExt/**
+  - 📄 `package.json` — what the extension contributes: custom editor, commands, settings, keys
+  - 📄 `esbuild.mjs` — bundles the extension and the webview into `dist/`
+  - **📁 .github/workflows/**
+    - 📄 `ci.yml` — lint, typecheck and tests on every push
+    - 📄 `publish.yml` — publishes when a `v*` tag is pushed
+  - **📁 src/** — extension host (runs in Node)
+    - 📄 `extension.ts` — registers the provider and the commands
+    - 📄 `MdEditorProvider.ts` — sets up the webview: HTML, CSP, one `DocumentSync` per editor
+    - 📄 `DocumentSync.ts` — versions, the edit queue, own and outside changes (§3.4)
+    - 📄 `protocol.ts` — message types between host and webview (§3.2)
+    - 📄 `images.ts` — image paths and base URIs
+    - 📄 `saveImage.ts` — writes pasted and dropped images to `assets/`
+    - 📄 `export.ts` — Markdown to a standalone HTML file
+    - 📄 `exportCommand.ts` — the export commands
+    - 📄 `pdf.ts` — PDF export through Chrome or Edge
+    - 📄 `headings.ts` — Go to Heading
+    - 📄 `links.ts` — link handling
+    - 📄 `util/nonce.ts` — CSP nonce
+  - **📁 webview/** — the editor inside the webview (runs in the browser)
+    - 📄 `main.ts` — entry point
+    - 📄 `editor.ts` — CodeMirror setup
+    - 📄 `sync.ts` — webview side of the sync: one edit in flight
+    - 📄 `commands.ts` — formatting commands and shortcuts, minimal-edit rule (§3.6)
+    - 📄 `toolbar.ts` — the toolbar
+    - 📄 `modes.ts` — Live, Source and Reading
+    - 📄 `imagePaste.ts` — paste and drop of images
+    - 📄 `viewState.ts` — scroll position and mode kept across reloads
+    - **📁 lazy/** — code loaded on demand: katex, mermaid, code languages
+    - **📁 styles/** — `editor.css`
+    - **📁 livePreview/** — the rendered look (§3.5)
+      - 📄 `reveal.ts` — which nodes the selection touches
+      - 📄 `inline.ts` — marks and hidden symbols
+      - 📄 `blocks.ts` — block widgets and the ranges they replace
+      - 📄 `widgets.ts` — checkbox, rule and other small widgets
+      - 📄 `renderWidgets.ts` — math and Mermaid
+      - 📄 `tableEdit.ts` — editing table cells in place
+      - 📄 `images.ts` — images in the text
+      - 📄 `links.ts` — links in the text
+      - 📄 `footnotes.ts` — footnotes
+      - 📄 `frontMatter.ts` — front matter
+      - 📄 `htmlWidget.ts` — sanitized raw HTML
+      - 📄 `theme.ts` — colours and fonts from the VS Code theme
+  - **📁 test/**
+    - **📁 unit/** — Vitest tests, including the randomized sync and preview simulations
+    - **📁 integration/** — tests that run inside VS Code
+    - **📁 corpus/** — sample `.md` files that every minimal-diff test runs on
+  - **📁 images/** — the icon and the README pictures
 
 ## 5. Phases
 
@@ -309,7 +338,17 @@ MdEditorExt/
 - [x] GIFs for the README: `images/clean-diff.gif` (the diff for an italic and a ticked task, with a diff panel built from the edits the editor sends), `images/symbols.gif` and `images/table-editing.gif`. They were recorded from the real webview bundle in headless Edge, with scripted clicks and typing, not from a VS Code window (the scripts are not in the repository). Re-record them in VS Code if the look changes.
 - [x] **Published to the Visual Studio Marketplace** (publisher `zhongwu`, extension `zhongwu.mk-editor-ext`, display name "Markdown Minimal Diff Editor"; "Markdown Live Editor" was taken). 0.1.0 (2026-10-28) was uploaded by hand on the Marketplace manage page; 0.1.1 and 0.1.2 were published by `.github/workflows/publish.yml`.
 - [x] **Releasing:** raise `version` in `package.json` and `package-lock.json`, add a `CHANGELOG.md` entry, commit and push to `main`, then push a tag `vX.Y.Z` (`git tag vX.Y.Z`, `git push origin vX.Y.Z`). The Publish workflow checks that the tag matches `package.json`, runs lint, typecheck and the unit tests, and runs `npx @vscode/vsce publish --oidc`. There is no access token: the Marketplace publisher page has a Trusted Publishing policy ("Release on tag") for `zhongwu/MkEditorExt` and `publish.yml`. If the repository is renamed, moved or recreated, the policy has to be made again. A new version shows as "Verifying" for a few minutes, and the public listing can lag by up to about an hour. The README on the listing only changes with a new version. An Azure DevOps organization (and so a personal access token) was not possible without an Azure subscription, which is why trusted publishing is used.
-- [ ] Publish to Open VSX with `ovsx publish` (needs an Open VSX account, namespace and token). Not started; not needed for VS Code.
+- [x] **Published to Open VSX** (the registry used by VSCodium, Cursor, Theia and others; not needed for VS Code). 0.1.4 went up on 2026-10-30. Steps, checked against the Open VSX wiki on 2026-10-29, for doing it again:
+  1. [x] Eclipse account at `https://accounts.eclipse.org/user/register`, with the GitHub username `zhongwu` in the *GitHub Username* field. Confirm the email. (Filling in the Eclipse Contributor Agreement form is part of this.)
+  2. [x] Log in at `https://open-vsx.org` with GitHub (account icon, top right).
+  3. [x] Settings → Profile (`/user-settings/profile`) → **Log in with Eclipse**, to link the two accounts.
+  4. [x] On the Profile page, **Show Publisher Agreement**, read it and **Agree**. This is not the Eclipse Contributor Agreement form. Publishing is blocked until it is accepted. The page then says "Publisher Agreement signed".
+  5. [x] Namespace, which must equal `publisher` in `package.json` (`zhongwu`). The **+** next to NAMESPACES on the website creates it (so does `npx ovsx create-namespace zhongwu -p <token>`).
+  6. [x] Claim ownership: an issue in `EclipseFdn/open-vsx.org` from the "Claiming namespace" form (the **Claim Ownership** button on the namespace page), "VS Code Publisher with Repo", with the Marketplace publisher URL and the repository URL as evidence. Filed as #14930 on 2026-10-29 and granted about a day later. Until it is granted the namespace shows "Namespace not verified" and a published extension can stay inactive, so wait for it before publishing. Do not close the issue. Do not file a second one.
+  7. [x] First release, which needs a token (trusted publishing needs the extension to exist first). Settings → Access Tokens → **Generate new token**, with the namespace set to `zhongwu` and "Publishing only" ticked. It is shown once; keep it out of chat, files and commits. In your own PowerShell: `$env:OVSX_PAT = Read-Host "Open VSX token"`, `npx @vscode/vsce package --out extension.vsix`, `npx ovsx publish extension.vsix -p $env:OVSX_PAT`. The registry scans the package first, so the listing can take a few minutes to appear at `https://open-vsx.org/extension/zhongwu/mk-editor-ext`. Afterwards delete the token and `extension.vsix`.
+  8. [x] Trusted publisher, for releases from CI without a token: Settings → Trusted Publishers → Register, namespace `zhongwu`, GitHub, extension `mk-editor-ext`, owner `zhongwu`, repository `MkEditorExt`, workflow `publish.yml`, no environment. One per extension; renaming or moving the repository means making it again, and a publish with a token (`--pat` or `OVSX_PAT`) takes precedence over it.
+  9. [ ] Test it: `publish.yml` builds one `.vsix`, publishes it to the Marketplace (`vsce publish --oidc --packagePath`) and then to Open VSX (`ovsx publish --trusted-publishing`). Neither form has run in CI yet, so the next tagged release (0.1.5) is the first real test. If one fails, the other registry is unaffected unless it ran later in the job, so re-run only the failed step by hand.
+  - The `publisher` casing in `package.json` must match the namespace exactly.
 
 **Total for one developer: about 5 weeks.**
 

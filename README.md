@@ -113,6 +113,7 @@ PDF export uses Google Chrome or Microsoft Edge installed on the same machine as
 
 ## Limits
 
+- VS Code's Outline view and breadcrumbs stay empty in this editor, because VS Code only fills them for text editors. Use **Go to Heading** (`Ctrl/Cmd+Shift+O`) instead, or reopen the file in the Text Editor to see the Outline.
 - Math inside a table cell is shown as `$x$` text, not drawn.
 - Mermaid diagrams are not redrawn when you switch VS Code's theme until the diagram is edited or the file reopened.
 - The label of a code fence's language is hidden when the cursor is outside the block.
