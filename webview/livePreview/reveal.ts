@@ -1,16 +1,39 @@
-import { EditorSelection, Facet, type EditorState } from '@codemirror/state';
+import {
+  EditorSelection,
+  Facet,
+  StateEffect,
+  StateField,
+  type EditorState,
+} from '@codemirror/state';
 
 /** True in Reading mode, where symbols are never revealed (PLAN.md §3.5). */
 export const readingFacet = Facet.define<boolean, boolean>({
   combine: (values) => values.some(Boolean),
 });
 
+/** Sent when the user first clicks or presses a key in the editor. */
+export const engage = StateEffect.define<null>();
+
+/**
+ * True from when the editor opens until the user first clicks, types or moves the cursor. A
+ * newly opened file has its cursor at the start, which would show the symbols of the first
+ * line, so until then nothing is revealed and the whole document is drawn.
+ */
+export const pristineField = StateField.define<boolean>({
+  create: () => true,
+  update: (value, tr) =>
+    value && !tr.selection && !tr.effects.some((effect) => effect.is(engage)) ? true : false,
+});
+
 /** A selection that touches nothing: a cursor before the start of the document. */
 const NOWHERE = EditorSelection.single(-1);
 
-/** The selection that decides which symbols are shown: the real one, except in Reading mode. */
+/**
+ * The selection that decides which symbols are shown: the real one, except in Reading mode and
+ * before the user has first interacted with the editor.
+ */
 export function revealSelection(state: EditorState): EditorSelection {
-  return state.facet(readingFacet) ? NOWHERE : state.selection;
+  return state.facet(readingFacet) || state.field(pristineField, false) ? NOWHERE : state.selection;
 }
 
 /**

@@ -10,6 +10,14 @@ Mark each one with the date and what you used.
 - [ ] Light Modern: the same, and the selection is visible over code blocks and the current line.
 - [ ] High Contrast and High Contrast Light: every control has a visible border or outline, and focus is visible on toolbar buttons and widgets.
 
+## Display language
+
+Install the language pack (for example "Chinese (Simplified) Language Pack"), run **Configure Display Language**, choose the language and restart. Press **F5** as usual. Switch back to English afterwards.
+
+- [ ] Simplified Chinese (zh-cn): the toolbar tooltips and mode buttons, the command titles, the setting descriptions, **Go to Heading** with no headings, and the export messages are in Chinese. The extension name and alert titles stay in English.
+- [ ] Traditional Chinese (zh-tw): the same, in Traditional Chinese.
+- [ ] A language with no translation (for example French): everything is in English.
+
 ## Text
 
 - [ ] Non-ASCII text (accents, Chinese) and emoji, including emoji at the start and end of a line and inside bold text. Typing and deleting next to them does not split a character.

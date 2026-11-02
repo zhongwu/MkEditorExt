@@ -23,7 +23,10 @@ async function writeImage(
 ): Promise<string | undefined> {
   if (bytes.length > MAX_IMAGE_BYTES) {
     void vscode.window.showErrorMessage(
-      `That image is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB, so it was not added.`,
+      vscode.l10n.t(
+        'That image is larger than {0} MB, so it was not added.',
+        MAX_IMAGE_BYTES / 1024 / 1024,
+      ),
     );
     return undefined;
   }
@@ -43,7 +46,7 @@ async function writeImage(
     return `${IMAGE_FOLDER}/${fileName}`;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    void vscode.window.showErrorMessage(`The image could not be saved: ${reason}`);
+    void vscode.window.showErrorMessage(vscode.l10n.t('The image could not be saved: {0}', reason));
     return undefined;
   }
 }
@@ -68,8 +71,8 @@ export async function pickImage(documentFolder: vscode.Uri): Promise<SavedImage 
     (await vscode.window.showOpenDialog({
       canSelectMany: false,
       defaultUri: documentFolder,
-      openLabel: 'Insert image',
-      filters: { Images: [...Object.values(IMAGE_TYPES), 'jpeg'] },
+      openLabel: vscode.l10n.t('Insert image'),
+      filters: { [vscode.l10n.t('Images')]: [...Object.values(IMAGE_TYPES), 'jpeg'] },
     })) ?? [];
   if (!file) {
     return undefined;
@@ -81,7 +84,7 @@ export async function pickImage(documentFolder: vscode.Uri): Promise<SavedImage 
   }
   const mime = imageMimeForName(file.path);
   if (!mime) {
-    void vscode.window.showErrorMessage('That file is not a supported image.');
+    void vscode.window.showErrorMessage(vscode.l10n.t('That file is not a supported image.'));
     return undefined;
   }
   try {
@@ -90,7 +93,7 @@ export async function pickImage(documentFolder: vscode.Uri): Promise<SavedImage 
     return path ? { path, alt } : undefined;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    void vscode.window.showErrorMessage(`The image could not be read: ${reason}`);
+    void vscode.window.showErrorMessage(vscode.l10n.t('The image could not be read: {0}', reason));
     return undefined;
   }
 }

@@ -14,7 +14,7 @@ import { findFrontMatter } from './frontMatter';
 import { HtmlWidget } from './htmlWidget';
 import { resolveImageSrc } from './images';
 import { MathWidget, MermaidWidget } from './renderWidgets';
-import { isTouched, readingFacet, revealSelection } from './reveal';
+import { isTouched, pristineField, readingFacet, revealSelection } from './reveal';
 import { cellRanges, type CellRange } from './tableEdit';
 import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget } from './widgets';
 
@@ -35,9 +35,9 @@ export interface TableData {
 }
 
 export type BlockItem =
-  | { type: 'hr'; from: number; to: number }
+  | { type: 'hr'; from: number; to: number; indent?: number }
   | { type: 'frontMatter'; from: number; to: number; entries: [string, string][] }
-  | { type: 'table'; from: number; to: number; data: TableData }
+  | { type: 'table'; from: number; to: number; data: TableData; indent?: number }
   /** `revealed`: the cursor is in the image's source, so the image is drawn below it instead. */
   | { type: 'image'; from: number; to: number; src: string; alt: string; revealed: boolean }
   /** `offset`: where the `[ ]` character to toggle sits, counted from `from`. */
@@ -129,7 +129,7 @@ function codeText(doc: Text, node: SyntaxNode): string {
 const LIST_NODES = new Set(['BulletList', 'OrderedList', 'ListItem']);
 
 /**
- * Where a formula or diagram block is drawn: at the top level as it is, and in a (nested) list
+ * Where a formula, diagram, table or rule is drawn: at the top level as it is, and in a (nested) list
  * item from the start of its line, indented to match. Elsewhere, such as in a quote, it is not drawn.
  */
 function blockPlace(doc: Text, node: SyntaxNode): ({ from: number } & Nesting) | null {
@@ -159,7 +159,8 @@ function alignOf(cell: string): Align {
   return left && right ? 'center' : right ? 'right' : left ? 'left' : null;
 }
 
-function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
+/** `origin`: where the widget starts, which the cell ranges count from. */
+function tableData(doc: Text, node: SyntaxNode, origin: number): TableData | undefined {
   const head = node.getChild('TableHeader');
   if (!head) return undefined;
   const cells = (row: SyntaxNode) =>
@@ -173,7 +174,7 @@ function tableData(doc: Text, node: SyntaxNode): TableData | undefined {
   // A row whose cells cannot be matched to the text is shown but not editable.
   const rangesOf = (row: SyntaxNode, count: number) => {
     const line = doc.lineAt(row.from);
-    const ranges = cellRanges(line.from - node.from, line.text);
+    const ranges = cellRanges(line.from - origin, line.text);
     return ranges.length === count ? ranges : [];
   };
   return {
@@ -214,15 +215,27 @@ export function collectBlocks(
       if (node.to <= skipUntil) return false;
       const topLevel = node.parent?.name === 'Document';
       switch (node.name) {
-        case 'HorizontalRule':
-          if (topLevel && !touched(node.from, node.to)) {
-            items.push({ type: 'hr', from: node.from, to: node.to });
+        case 'HorizontalRule': {
+          const place = blockPlace(doc, node);
+          if (place && !place.inline && !touched(place.from, node.to)) {
+            items.push({ type: 'hr', from: place.from, to: node.to, indent: place.indent });
           }
           return false;
+        }
         case 'Table': {
-          if (topLevel && !touched(node.from, node.to)) {
-            const data = tableData(doc, node);
-            if (data) items.push({ type: 'table', from: node.from, to: node.to, data });
+          // A table on the line of a list marker cannot be drawn as a block, so it stays text.
+          const place = blockPlace(doc, node);
+          if (place && !place.inline && !touched(place.from, node.to)) {
+            const data = tableData(doc, node, place.from);
+            if (data) {
+              items.push({
+                type: 'table',
+                from: place.from,
+                to: node.to,
+                data,
+                indent: place.indent,
+              });
+            }
           }
           return false;
         }
@@ -320,7 +333,10 @@ function blockRanges(items: readonly BlockItem[], baseUri: string): Range<Decora
     switch (item.type) {
       case 'hr':
         ranges.push(
-          Decoration.replace({ widget: new HrWidget(), block: true }).range(item.from, item.to),
+          Decoration.replace({ widget: new HrWidget(item.indent), block: true }).range(
+            item.from,
+            item.to,
+          ),
         );
         break;
       case 'frontMatter':
@@ -333,10 +349,10 @@ function blockRanges(items: readonly BlockItem[], baseUri: string): Range<Decora
         break;
       case 'table':
         ranges.push(
-          Decoration.replace({ widget: new TableWidget(item.data), block: true }).range(
-            item.from,
-            item.to,
-          ),
+          Decoration.replace({
+            widget: new TableWidget(item.data, item.indent),
+            block: true,
+          }).range(item.from, item.to),
         );
         break;
       case 'image': {
@@ -429,7 +445,8 @@ export function blockPreview(baseUri: string) {
       const { state, startState } = tr;
       if (
         startState.facet(renderHtmlFacet) !== state.facet(renderHtmlFacet) ||
-        startState.facet(readingFacet) !== state.facet(readingFacet)
+        startState.facet(readingFacet) !== state.facet(readingFacet) ||
+        startState.field(pristineField, false) !== state.field(pristineField, false)
       ) {
         return full(state);
       }

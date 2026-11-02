@@ -74,16 +74,16 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     }
     const headings = findHeadings(editor.document.getText());
     if (headings.length === 0) {
-      void vscode.window.showInformationMessage('This document has no headings.');
+      void vscode.window.showInformationMessage(vscode.l10n.t('This document has no headings.'));
       return true;
     }
     const choice = await vscode.window.showQuickPick(
       headings.map((heading) => ({
-        label: `${'    '.repeat(heading.level - 1)}${heading.text || '(empty heading)'}`,
+        label: `${'    '.repeat(heading.level - 1)}${heading.text || vscode.l10n.t('(empty heading)')}`,
         description: `H${heading.level}`,
         line: heading.line,
       })),
-      { title: 'Go to heading', matchOnDescription: false },
+      { title: vscode.l10n.t('Go to heading'), matchOnDescription: false },
     );
     if (choice) {
       editor.post({ type: 'revealLine', line: choice.line });
@@ -255,9 +255,11 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
       `font-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
     ].join('; ');
+    // The translations of the webview's text (webview/l10n.ts), none for English.
+    const l10nBundle = escapeAttribute(JSON.stringify(vscode.l10n.bundle ?? {}));
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeAttribute(vscode.env.language)}">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="${csp}">
@@ -265,13 +267,21 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   <link href="${styleUri}" rel="stylesheet">
   <title>Markdown Minimal Diff Editor</title>
 </head>
-<body>
+<body data-l10n="${l10nBundle}">
   <div id="toolbar"></div>
   <div id="editor"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }
+}
+
+function escapeAttribute(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): EditorSettings {
@@ -293,7 +303,9 @@ async function openLink(
   const documentUri = document.uri;
   const target = classifyLink(href);
   if (!target) {
-    void vscode.window.showWarningMessage(`This link type can't be opened: ${href}`);
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t("This link type can't be opened: {0}", href),
+    );
     return;
   }
   switch (target.kind) {

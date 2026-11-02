@@ -73,3 +73,37 @@ describe('table data ranges', () => {
     ]);
   });
 });
+
+describe('tables in list items', () => {
+  const tables = (doc: string) => {
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(doc.length),
+      extensions: [markdown({ base: markdownLanguage })],
+    });
+    ensureSyntaxTree(state, doc.length, 5000);
+    return collectBlocks(state, '').flatMap((item) => (item.type === 'table' ? [item] : []));
+  };
+
+  it('draws a table in a (nested) list item from the start of its line, indented', () => {
+    const doc = '- a\n  - b\n\n    | H1 | H2 |\n    | --- | --- |\n    | x | y |\n\nend\n';
+    const [table] = tables(doc);
+    const start = doc.indexOf('    | H1');
+    expect(table).toMatchObject({ from: start, indent: 4 });
+    const text = (r: { from: number; to: number }) =>
+      doc.slice(table.from + r.from, table.from + r.to);
+    expect(table.data.ranges.map((row) => row.map(text))).toEqual([
+      [' H1 ', ' H2 '],
+      [' x ', ' y '],
+    ]);
+  });
+
+  it('draws a table right under the item text', () => {
+    const doc = '1. Numbered\n   | p | q |\n   |---|---|\n   | 3 | 4 |\n\nend\n';
+    expect(tables(doc)).toMatchObject([{ from: doc.indexOf('   | p'), indent: 3 }]);
+  });
+
+  it('leaves a table in a quote as text', () => {
+    expect(tables('> | a | b |\n> |---|---|\n> | 1 | 2 |\n\nend\n')).toEqual([]);
+  });
+});

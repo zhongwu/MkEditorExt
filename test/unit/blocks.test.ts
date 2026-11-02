@@ -5,6 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { collectBlocks, type BlockItem } from '../../webview/livePreview/blocks';
 import { findFrontMatter } from '../../webview/livePreview/frontMatter';
 import { resolveImageSrc } from '../../webview/livePreview/images';
+import { engage, pristineField } from '../../webview/livePreview/reveal';
 
 const BASE = 'https://file.example/docs/';
 
@@ -52,6 +53,26 @@ describe('collectBlocks', () => {
   it('draws a horizontal rule until the cursor is on it', () => {
     expect(blocks('a\n\n---\n\n|b')).toEqual([{ type: 'hr', from: 3, to: 6 }]);
     expect(blocks('a\n\n-^--\n\nb')).toEqual([]);
+  });
+
+  it('draws a horizontal rule in a list item, indented, but not in a quote', () => {
+    expect(blocks('- a\n\n  ---\n\n|b')).toEqual([{ type: 'hr', from: 5, to: 10, indent: 2 }]);
+    expect(blocks('> a\n>\n> ---\n\n|b')).toEqual([]);
+  });
+
+  it('reveals nothing until the user first interacts with the editor', () => {
+    const doc = '---\n\ntext';
+    const open = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(0),
+      extensions: [markdown({ base: markdownLanguage }), pristineField],
+    });
+    ensureSyntaxTree(open, doc.length, 5000);
+    expect(collectBlocks(open, BASE)).toHaveLength(1);
+    const clicked = open.update({ effects: engage.of(null) }).state;
+    expect(collectBlocks(clicked, BASE)).toEqual([]);
+    const moved = open.update({ selection: EditorSelection.cursor(0) }).state;
+    expect(moved.field(pristineField)).toBe(false);
   });
 
   it('ignores a setext underline', () => {

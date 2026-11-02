@@ -1,7 +1,7 @@
 {
   "name": "mk-editor-ext",
-  "displayName": "Markdown Minimal Diff Editor",
-  "description": "Live-preview Markdown editor that never rewrites parts of the file you didn't touch.",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.1.6",
   "publisher": "zhongwu",
   "license": "MIT",
@@ -39,7 +39,7 @@
     "customEditors": [
       {
         "viewType": "mdEditor.editor",
-        "displayName": "Markdown Minimal Diff Editor",
+        "displayName": "%customEditor.displayName%",
         "selector": [
           {
             "filenamePattern": "*.md"
@@ -54,38 +54,38 @@
     "commands": [
       {
         "command": "mdEditor.openEditor",
-        "title": "Open in Markdown Minimal Diff Editor",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.openEditor.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.setMode",
-        "title": "Switch Mode (Live / Source / Reading)",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.setMode.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.toggleSource",
-        "title": "Toggle Source Mode",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.toggleSource.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.goToHeading",
-        "title": "Go to Heading",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.goToHeading.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.insertImage",
-        "title": "Insert Image",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.insertImage.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.exportHtml",
-        "title": "Export to HTML",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.exportHtml.title%",
+        "category": "%command.category%"
       },
       {
         "command": "mdEditor.exportPdf",
-        "title": "Export to PDF",
-        "category": "Markdown Minimal Diff Editor"
+        "title": "%command.exportPdf.title%",
+        "category": "%command.category%"
       }
     ],
     "keybindings": [
@@ -118,7 +118,7 @@
       ]
     },
     "configuration": {
-      "title": "Markdown Minimal Diff Editor",
+      "title": "%configuration.title%",
       "properties": {
         "mdEditor.defaultMode": {
           "type": "string",
@@ -128,30 +128,30 @@
             "reading"
           ],
           "default": "live",
-          "markdownDescription": "How a Markdown file is shown when you open it. The mode you last picked in this workspace is used instead, once you have picked one."
+          "markdownDescription": "%config.defaultMode.description%"
         },
         "mdEditor.proseFontFamily": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Font for text in the editor (CSS `font-family`). Leave empty to use VS Code's UI font. Code always uses `#editor.fontFamily#`."
+          "markdownDescription": "%config.proseFontFamily.description%"
         },
         "mdEditor.browserPath": {
           "type": "string",
           "default": "",
           "scope": "application",
-          "markdownDescription": "Program file of Google Chrome, Microsoft Edge or Chromium, used by **Export to PDF**. Leave empty to look in the usual places. It can only be set in your user settings."
+          "markdownDescription": "%config.browserPath.description%"
         },
         "mdEditor.customCss": {
           "type": "string",
           "default": "",
           "scope": "application",
           "editPresentation": "multilineText",
-          "markdownDescription": "Your own CSS for the editor, for example `.cm-md-h1 { color: orange; }`. It can only be set in your user settings, not in a workspace, so a project cannot restyle your editor."
+          "markdownDescription": "%config.customCss.description%"
         },
         "mdEditor.renderHtml": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Draw raw HTML blocks in Markdown files (after removing scripts, styles, forms and links that navigate). When off, HTML blocks are shown as source."
+          "markdownDescription": "%config.renderHtml.description%"
         }
       }
     }
@@ -200,5 +200,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"
-  }
+  },
+  "l10n": "./l10n"
 }

@@ -3,12 +3,8 @@
 
 import { EditorView, WidgetType } from '@codemirror/view';
 import { loadKatex, loadMermaid } from './lazy';
-import { revealOnMouseDown } from './widgets';
-
-/** Moves a formula or diagram in a list item in by `indent` characters, to sit under its text. */
-function indentBy(el: HTMLElement, view: EditorView, indent: number): void {
-  if (indent > 0) el.style.marginLeft = `calc(24px + ${indent * view.defaultCharacterWidth}px)`;
-}
+import { l10n } from '../l10n';
+import { indentBy, revealOnMouseDown } from './widgets';
 
 export class MathWidget extends WidgetType {
   constructor(
@@ -92,9 +88,9 @@ export class MermaidWidget extends WidgetType {
     el.setAttribute('role', 'img');
     el.setAttribute(
       'aria-label',
-      `Mermaid diagram: ${this.source.replace(/\s+/g, ' ').trim().slice(0, 200)}`,
+      l10n.t('Mermaid diagram: {0}', this.source.replace(/\s+/g, ' ').trim().slice(0, 200)),
     );
-    el.textContent = 'Rendering diagram…';
+    el.textContent = l10n.t('Rendering diagram…');
     renderDiagram(this.source, mermaidTheme())
       .then((svg) => {
         el.className = 'cm-md-mermaid cm-md-mermaid-done';
@@ -104,7 +100,7 @@ export class MermaidWidget extends WidgetType {
       .catch((error: unknown) => {
         el.className = 'cm-md-mermaid cm-md-mermaid-error';
         const message = error instanceof Error ? error.message : String(error);
-        el.textContent = `Diagram could not be drawn: ${message.split('\n')[0]}`;
+        el.textContent = l10n.t('Diagram could not be drawn: {0}', message.split('\n')[0]);
       })
       .finally(() => view.requestMeasure());
     return revealOnMouseDown(el, view);

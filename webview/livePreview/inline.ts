@@ -12,10 +12,11 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { l10n } from '../l10n';
 import { composingField } from './composition';
 import { footnoteDefinitions, type FootnoteDefinition } from './footnotes';
 import { findFrontMatter } from './frontMatter';
-import { isTouched, readingFacet, revealSelection } from './reveal';
+import { isTouched, pristineField, readingFacet, revealSelection } from './reveal';
 
 export type InlineItem =
   /** Text hidden from view (the Markdown symbols). */
@@ -203,7 +204,7 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
             from: open.to,
             to: close.from,
             className: 'cm-md-footnote-ref',
-            title: note ? preview(note) : 'No definition found for this footnote',
+            title: note ? preview(note) : l10n.t('No definition found for this footnote'),
           });
           if (!touched(node)) {
             items.push({ type: 'hide', from: open.from, to: open.to });
@@ -309,7 +310,7 @@ const lineCache = new Map<string, Decoration>();
 
 function openLinkHint(): string {
   const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
-  return isMac ? 'Cmd+click to open' : 'Ctrl+click to open';
+  return l10n.t('{0}+click to open', isMac ? 'Cmd' : 'Ctrl');
 }
 
 function markDecoration(className: string, title?: string): Decoration {
@@ -398,6 +399,8 @@ export const inlinePreview = ViewPlugin.fromClass(
         update.viewportChanged ||
         update.selectionSet ||
         update.startState.facet(readingFacet) !== update.state.facet(readingFacet) ||
+        update.startState.field(pristineField, false) !==
+          update.state.field(pristineField, false) ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.held = false;

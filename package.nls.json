@@ -1,0 +1,19 @@
+{
+  "displayName": "Markdown Minimal Diff Editor",
+  "description": "Live-preview Markdown editor that never rewrites parts of the file you didn't touch.",
+  "customEditor.displayName": "Markdown Minimal Diff Editor",
+  "command.openEditor.title": "Open in Markdown Minimal Diff Editor",
+  "command.setMode.title": "Switch Mode (Live / Source / Reading)",
+  "command.toggleSource.title": "Toggle Source Mode",
+  "command.goToHeading.title": "Go to Heading",
+  "command.insertImage.title": "Insert Image",
+  "command.exportHtml.title": "Export to HTML",
+  "command.exportPdf.title": "Export to PDF",
+  "command.category": "Markdown Minimal Diff Editor",
+  "configuration.title": "Markdown Minimal Diff Editor",
+  "config.defaultMode.description": "How a Markdown file is shown when you open it. The mode you last picked in this workspace is used instead, once you have picked one.",
+  "config.proseFontFamily.description": "Font for text in the editor (CSS `font-family`). Leave empty to use VS Code's UI font. Code always uses `#editor.fontFamily#`.",
+  "config.browserPath.description": "Program file of Google Chrome, Microsoft Edge or Chromium, used by **Export to PDF**. Leave empty to look in the usual places. It can only be set in your user settings.",
+  "config.customCss.description": "Your own CSS for the editor, for example `.cm-md-h1 { color: orange; }`. It can only be set in your user settings, not in a workspace, so a project cannot restyle your editor.",
+  "config.renderHtml.description": "Draw raw HTML blocks in Markdown files (after removing scripts, styles, forms and links that navigate). When off, HTML blocks are shown as source."
+}

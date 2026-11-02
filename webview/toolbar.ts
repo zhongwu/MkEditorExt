@@ -2,6 +2,7 @@
 // Buttons are real <button>s with labels, so they work with the keyboard and screen readers.
 
 import { MODES, type ExportFormat, type Mode } from '../src/protocol';
+import { l10n } from './l10n';
 
 export interface ToolbarActions {
   /** Runs a formatting command on the editor. */
@@ -15,22 +16,22 @@ const mod = isMac ? 'Cmd' : 'Ctrl';
 
 /** Visible text, the accessible name and the shortcut of each button. */
 const BUTTON_LABELS = {
-  bold: ['B', 'Bold', `${mod}+B`],
-  italic: ['I', 'Italic', `${mod}+I`],
-  strike: ['S', 'Strikethrough', `${mod}+Shift+X`],
-  code: ['</>', 'Inline code', `${mod}+E`],
-  h1: ['H1', 'Heading 1', `${mod}+Alt+1`],
-  h2: ['H2', 'Heading 2', `${mod}+Alt+2`],
-  h3: ['H3', 'Heading 3', `${mod}+Alt+3`],
-  bullet: ['•', 'Bulleted list', `${mod}+Shift+8`],
-  number: ['1.', 'Numbered list', `${mod}+Shift+7`],
-  task: ['☐', 'Task list', ''],
-  toggleTask: ['☑', 'Tick or untick task', `${mod}+Enter`],
-  quote: ['"', 'Quote', `${mod}+Shift+9`],
-  link: ['Link', 'Link', `${mod}+K`],
-  table: ['Table', 'Insert table', ''],
-  image: ['Image', 'Insert image from a file', ''],
-} as const satisfies Record<string, readonly [string, string, string]>;
+  bold: ['B', l10n.t('Bold'), `${mod}+B`],
+  italic: ['I', l10n.t('Italic'), `${mod}+I`],
+  strike: ['S', l10n.t('Strikethrough'), `${mod}+Shift+X`],
+  code: ['</>', l10n.t('Inline code'), `${mod}+E`],
+  h1: ['H1', l10n.t('Heading 1'), `${mod}+Alt+1`],
+  h2: ['H2', l10n.t('Heading 2'), `${mod}+Alt+2`],
+  h3: ['H3', l10n.t('Heading 3'), `${mod}+Alt+3`],
+  bullet: ['•', l10n.t('Bulleted list'), `${mod}+Shift+8`],
+  number: ['1.', l10n.t('Numbered list'), `${mod}+Shift+7`],
+  task: ['☐', l10n.t('Task list'), ''],
+  toggleTask: ['☑', l10n.t('Tick or untick task'), `${mod}+Enter`],
+  quote: ['"', l10n.t('Quote'), `${mod}+Shift+9`],
+  link: ['Link', l10n.t('Link'), `${mod}+Alt+K`],
+  table: ['Table', l10n.t('Insert table'), ''],
+  image: ['Image', l10n.t('Insert image from a file'), ''],
+} satisfies Record<string, readonly [string, string, string]>;
 
 const GROUPS: (keyof typeof BUTTON_LABELS)[][] = [
   ['bold', 'italic', 'strike', 'code'],
@@ -65,11 +66,15 @@ const EXPORT_ICONS = {
   ),
 } as const satisfies Record<ExportFormat, string>;
 
-const MODE_LABELS: Record<Mode, string> = { live: 'Live', source: 'Source', reading: 'Reading' };
+const MODE_LABELS: Record<Mode, string> = {
+  live: l10n.t('Live'),
+  source: l10n.t('Source'),
+  reading: l10n.t('Reading'),
+};
 
 export function createToolbar(container: HTMLElement, actions: ToolbarActions) {
   container.setAttribute('role', 'toolbar');
-  container.setAttribute('aria-label', 'Markdown formatting');
+  container.setAttribute('aria-label', l10n.t('Markdown formatting'));
 
   const formatButtons: HTMLButtonElement[] = [];
   for (const names of GROUPS) {
@@ -105,15 +110,15 @@ export function createToolbar(container: HTMLElement, actions: ToolbarActions) {
   const exports = document.createElement('div');
   exports.className = 'md-toolbar-group';
   for (const [format, label] of [
-    ['html', 'HTML'],
-    ['pdf', 'PDF'],
+    ['html', l10n.t('Export to HTML')],
+    ['pdf', l10n.t('Export to PDF')],
   ] as const) {
     const button = document.createElement('button');
     button.type = 'button';
     // The icons are fixed markup written here, not from the document.
     button.innerHTML = EXPORT_ICONS[format];
-    button.setAttribute('aria-label', `Export to ${label}`);
-    button.title = `Export to ${label}`;
+    button.setAttribute('aria-label', label);
+    button.title = label;
     button.addEventListener('mousedown', (event) => event.preventDefault());
     button.addEventListener('click', () => actions.exportAs(format));
     exports.append(button);
@@ -123,7 +128,7 @@ export function createToolbar(container: HTMLElement, actions: ToolbarActions) {
   const modes = document.createElement('div');
   modes.className = 'md-toolbar-group md-toolbar-modes';
   modes.setAttribute('role', 'group');
-  modes.setAttribute('aria-label', 'Editor mode');
+  modes.setAttribute('aria-label', l10n.t('Editor mode'));
   const modeButtons = new Map<Mode, HTMLButtonElement>();
   for (const mode of MODES) {
     const button = document.createElement('button');

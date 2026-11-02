@@ -24,7 +24,9 @@ import { renderHtmlFacet } from './livePreview/blocks';
 import { footnoteExtension } from './livePreview/footnotes';
 import { lazyMarkdown } from './livePreview/languages';
 import { linkAt } from './livePreview/links';
+import { l10n } from './l10n';
 import { mathExtension } from './livePreview/math';
+import { engage, pristineField } from './livePreview/reveal';
 import { livePreviewTheme } from './livePreview/theme';
 import { modeExtensions } from './modes';
 
@@ -103,6 +105,11 @@ const highlightStyle = HighlightStyle.define([
 
 const htmlCompartment = new Compartment();
 
+/** From the first click or key press on, the symbols at the cursor are shown (see `pristineField`). */
+function engageEditor(view: EditorView): void {
+  if (view.state.field(pristineField, false)) view.dispatch({ effects: engage.of(null) });
+}
+
 /** Turns drawing of raw HTML blocks on or off in a running editor. */
 export function setRenderHtml(view: EditorView, enabled: boolean): void {
   view.dispatch({ effects: htmlCompartment.reconfigure(renderHtmlFacet.of(enabled)) });
@@ -129,6 +136,7 @@ export function createEditor(options: EditorOptions): EditorView {
         highlightSpecialChars(),
         drawSelection(),
         dropCursor(),
+        pristineField,
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
         bracketMatching(),
@@ -145,13 +153,14 @@ export function createEditor(options: EditorOptions): EditorView {
         htmlCompartment.of(renderHtmlFacet.of(options.renderHtml)),
         imageHandlers(options.onImages),
         EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ 'aria-label': 'Markdown editor' }),
+        EditorView.contentAttributes.of({ 'aria-label': l10n.t('Markdown editor') }),
         theme,
         livePreviewTheme,
         EditorView.domEventHandlers({
           // Ctrl+click (Cmd+click on macOS) opens a link, as in VS Code's own editor.
           // A plain click only places the cursor, so link text stays easy to edit.
           mousedown(event, view) {
+            engageEditor(view);
             if (event.button !== 0 || !(event.ctrlKey || event.metaKey)) {
               return false;
             }
@@ -163,6 +172,10 @@ export function createEditor(options: EditorOptions): EditorView {
             event.preventDefault();
             options.onOpenLink(href);
             return true;
+          },
+          keydown(_event, view) {
+            engageEditor(view);
+            return false;
           },
           // Fallback if the browser's own undo reaches the editor (e.g. from a context menu):
           // never let it change the text directly; ask VS Code instead.

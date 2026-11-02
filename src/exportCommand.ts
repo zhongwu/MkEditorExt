@@ -84,8 +84,10 @@ async function buildPage(
   if (sources.length > 0 && diagrams.size < sources.length) {
     void vscode.window.showWarningMessage(
       drawn
-        ? 'Some Mermaid diagrams could not be drawn; they are exported as code.'
-        : 'Mermaid diagrams are exported as code. Export from the Markdown Minimal Diff Editor to draw them.',
+        ? vscode.l10n.t('Some Mermaid diagrams could not be drawn; they are exported as code.')
+        : vscode.l10n.t(
+            'Mermaid diagrams are exported as code. Export from the Markdown Minimal Diff Editor to draw them.',
+          ),
     );
   }
   const hasMath = text.includes('$') || /^\s*(`{3,}|~{3,})\s*math\b/im.test(text);
@@ -118,7 +120,9 @@ export async function exportPdf(
   const browser = await findBrowser(configured.trim() || undefined);
   if (!browser) {
     void vscode.window.showErrorMessage(
-      'Export to PDF needs Google Chrome or Microsoft Edge, and neither was found. Install one, or set mdEditor.browserPath to its program file.',
+      vscode.l10n.t(
+        'Export to PDF needs Google Chrome or Microsoft Edge, and neither was found. Install one, or set mdEditor.browserPath to its program file.',
+      ),
     );
     return;
   }
@@ -126,29 +130,32 @@ export async function exportPdf(
   const target = await vscode.window.showSaveDialog({
     defaultUri: defaultTarget(document, 'pdf'),
     filters: { PDF: ['pdf'] },
-    saveLabel: 'Export',
-    title: 'Export to PDF',
+    saveLabel: vscode.l10n.t('Export'),
+    title: vscode.l10n.t('Export to PDF'),
   });
   if (!target) return;
   if (target.scheme !== 'file') {
-    void vscode.window.showErrorMessage('Export to PDF can only save to a local folder.');
+    void vscode.window.showErrorMessage(
+      vscode.l10n.t('Export to PDF can only save to a local folder.'),
+    );
     return;
   }
   try {
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'Exporting to PDF…' },
+      { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Exporting to PDF…') },
       () => printToPdf(browser, html, target.fsPath),
     );
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    void vscode.window.showErrorMessage(`The PDF could not be made: ${reason}`);
+    void vscode.window.showErrorMessage(vscode.l10n.t('The PDF could not be made: {0}', reason));
     return;
   }
+  const openPdf = vscode.l10n.t('Open PDF');
   const open = await vscode.window.showInformationMessage(
-    `Exported to ${target.fsPath}`,
-    'Open PDF',
+    vscode.l10n.t('Exported to {0}', target.fsPath),
+    openPdf,
   );
-  if (open) await vscode.env.openExternal(target);
+  if (open === openPdf) await vscode.env.openExternal(target);
 }
 
 /** Asks where to save, then writes the document as a standalone HTML page. */
@@ -161,20 +168,21 @@ export async function exportHtml(
   const target = await vscode.window.showSaveDialog({
     defaultUri: defaultTarget(document, 'html'),
     filters: { HTML: ['html'] },
-    saveLabel: 'Export',
-    title: 'Export to HTML',
+    saveLabel: vscode.l10n.t('Export'),
+    title: vscode.l10n.t('Export to HTML'),
   });
   if (!target) return;
   try {
     await vscode.workspace.fs.writeFile(target, Buffer.from(html, 'utf8'));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    void vscode.window.showErrorMessage(`The page could not be saved: ${reason}`);
+    void vscode.window.showErrorMessage(vscode.l10n.t('The page could not be saved: {0}', reason));
     return;
   }
+  const openInBrowser = vscode.l10n.t('Open in Browser');
   const open = await vscode.window.showInformationMessage(
-    `Exported to ${target.fsPath}`,
-    'Open in Browser',
+    vscode.l10n.t('Exported to {0}', target.fsPath),
+    openInBrowser,
   );
-  if (open) await vscode.env.openExternal(target);
+  if (open === openInBrowser) await vscode.env.openExternal(target);
 }

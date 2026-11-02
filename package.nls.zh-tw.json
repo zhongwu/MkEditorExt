@@ -1,0 +1,15 @@
+{
+  "description": "即時預覽的 Markdown 編輯器，絕不改寫檔案中你沒有修改的部分。",
+  "command.openEditor.title": "在 Markdown Minimal Diff Editor 中開啟",
+  "command.setMode.title": "切換模式（即時 / 原始碼 / 閱讀）",
+  "command.toggleSource.title": "切換原始碼模式",
+  "command.goToHeading.title": "移至標題",
+  "command.insertImage.title": "插入圖片",
+  "command.exportHtml.title": "匯出為 HTML",
+  "command.exportPdf.title": "匯出為 PDF",
+  "config.defaultMode.description": "開啟 Markdown 檔案時的顯示方式。在此工作區選過模式後，會改用你上次選擇的模式。",
+  "config.proseFontFamily.description": "編輯器中文字的字型（CSS `font-family`）。留空則使用 VS Code 的介面字型。程式碼一律使用 `#editor.fontFamily#`。",
+  "config.browserPath.description": "Google Chrome、Microsoft Edge 或 Chromium 的程式檔，供 **匯出為 PDF** 使用。留空則在常見位置尋找。只能在使用者設定中設定。",
+  "config.customCss.description": "你自己的編輯器 CSS，例如 `.cm-md-h1 { color: orange; }`。只能在使用者設定中設定，不能在工作區中設定，因此專案無法改變你的編輯器樣式。",
+  "config.renderHtml.description": "繪製 Markdown 檔案中的原始 HTML 區塊（會先移除指令碼、樣式、表單和會跳轉的連結）。關閉時，HTML 區塊會顯示為原始碼。"
+}

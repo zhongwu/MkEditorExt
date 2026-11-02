@@ -2,6 +2,7 @@
 // in its source, which shows the source instead; only the checkbox handles clicks itself.
 
 import { EditorView, WidgetType } from '@codemirror/view';
+import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
 import { cellChange } from './tableEdit';
 
@@ -38,12 +39,16 @@ function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
 }
 
 export class HrWidget extends WidgetType {
-  eq(): boolean {
-    return true;
+  constructor(readonly indent = 0) {
+    super();
+  }
+  eq(other: HrWidget): boolean {
+    return this.indent === other.indent;
   }
   toDOM(view: EditorView): HTMLElement {
     const hr = document.createElement('div');
     hr.className = 'cm-md-hr';
+    indentBy(hr, view, this.indent);
     hr.setAttribute('role', 'separator');
     return revealOnMouseDown(hr, view);
   }
@@ -62,11 +67,11 @@ export class FrontMatterWidget extends WidgetType {
     box.setAttribute('role', 'group');
     box.setAttribute(
       'aria-label',
-      `Front matter: ${this.entries.map(([key]) => key).join(', ') || 'empty'}`,
+      l10n.t('Front matter: {0}', this.entries.map(([key]) => key).join(', ') || l10n.t('empty')),
     );
     const title = document.createElement('div');
     title.className = 'cm-md-frontmatter-title';
-    title.textContent = 'Front matter';
+    title.textContent = l10n.t('Front matter');
     box.append(title);
     for (const [key, value] of this.entries) {
       const row = document.createElement('div');
@@ -81,6 +86,11 @@ export class FrontMatterWidget extends WidgetType {
 }
 
 /** Where to continue editing after a cell edit has redrawn its table (Tab to the next cell). */
+/** Moves a block in a list item in by `indent` characters, to sit under the item's text. */
+export function indentBy(el: HTMLElement, view: EditorView, indent: number): void {
+  if (indent > 0) el.style.marginLeft = `calc(24px + ${indent * view.defaultCharacterWidth}px)`;
+}
+
 let resume: { pos: number; row: number; col: number } | undefined;
 
 /**
@@ -89,11 +99,14 @@ let resume: { pos: number; row: number; col: number } | undefined;
  * the document (tableEdit.ts). Escape cancels. Shift+click shows the whole table's source.
  */
 export class TableWidget extends WidgetType {
-  constructor(readonly data: TableData) {
+  constructor(
+    readonly data: TableData,
+    readonly indent = 0,
+  ) {
     super();
   }
   eq(other: TableWidget): boolean {
-    return JSON.stringify(this.data) === JSON.stringify(other.data);
+    return this.indent === other.indent && JSON.stringify(this.data) === JSON.stringify(other.data);
   }
   ignoreEvent(): boolean {
     return true;
@@ -102,9 +115,10 @@ export class TableWidget extends WidgetType {
     const data = this.data;
     const table = document.createElement('table');
     table.className = 'cm-md-table';
+    indentBy(table, view, this.indent);
     table.setAttribute(
       'aria-label',
-      `Table, ${data.header.length} columns, ${data.rows.length + 1} rows`,
+      l10n.t('Table, {0} columns, {1} rows', data.header.length, data.rows.length + 1),
     );
     // Row 0 is the header; the cells of each row, for moving between them.
     const grid: HTMLTableCellElement[][] = [];
@@ -282,7 +296,7 @@ export class CheckboxWidget extends WidgetType {
     box.className = 'cm-md-checkbox' + (this.checked ? ' cm-md-checkbox-checked' : '');
     box.setAttribute('role', 'checkbox');
     box.setAttribute('aria-checked', String(this.checked));
-    box.setAttribute('aria-label', 'Task');
+    box.setAttribute('aria-label', l10n.t('Task'));
     const toggle = () => {
       if (view.state.readOnly) return;
       view.dispatch({ changes: checkboxChange(view.posAtDOM(box), this.offset, this.checked) });

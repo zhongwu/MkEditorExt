@@ -1,3 +1,5 @@
+English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
+
 # Markdown Minimal Diff Editor
 
 A live-preview Markdown editor for VS Code. Formatting is shown rendered as you type, and it **never rewrites parts of the file you didn't touch**.
@@ -35,6 +37,7 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 - **Export to HTML or PDF** from the toolbar or the Command Palette. Images and math are embedded, and Mermaid diagrams are drawn.
 - Works with VS Code's own save, undo and redo, the unsaved-changes marker and Git, and in remote windows (checked in WSL).
 - Follows your VS Code theme (light, dark and high contrast) and fonts. Raw HTML is shown as source unless you turn on rendering, and then it is sanitized.
+- The interface is also in Simplified and Traditional Chinese, following VS Code's display language.
 
 ## How editing works
 
@@ -74,7 +77,7 @@ graph LR
 ```
 ````
 
-They are drawn in place, in the colours of your VS Code theme:
+They are drawn in place, in the colours of your VS Code theme, inside list items too:
 
 ![KaTeX math, a flowchart and a sequence diagram, drawn in the editor](images/math-and-diagrams.png)
 
@@ -115,6 +118,7 @@ PDF export uses Google Chrome or Microsoft Edge installed on the same machine as
 
 - VS Code's Outline view and breadcrumbs stay empty in this editor, because VS Code only fills them for text editors. Use **Go to Heading** (`Ctrl/Cmd+Shift+O`) instead, or reopen the file in the Text Editor to see the Outline.
 - Math inside a table cell is shown as `$x$` text, not drawn.
+- Math, diagrams and tables inside a quote (`> `) are shown as source.
 - Mermaid diagrams are not redrawn when you switch VS Code's theme until the diagram is edited or the file reopened.
 - The label of a code fence's language is hidden when the cursor is outside the block.
 - IME input (Chinese, Japanese, Korean): each composition step is sent to the file as an edit, so undo has several steps.
@@ -141,6 +145,7 @@ To try it, open this folder in VS Code and press **F5**. In the new window, open
 |---|---|
 | `src/` | Extension host: the custom editor provider, the host side of the sync, export |
 | `webview/` | The editor inside the webview: CodeMirror setup, the live preview and the webview side of the sync |
+| `l10n/`, `package.nls.*.json` | Translations of the interface (a test checks they cover every message) |
 | `test/unit/` | Unit tests, including randomized simulations of the sync and of the preview |
 | `test/integration/` | Tests that run inside VS Code |
 | `test/corpus/` | Sample Markdown files that every minimal-diff test runs on |

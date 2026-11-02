@@ -144,7 +144,7 @@ Everything below is a CodeMirror decoration or widget over unchanged text. **Not
 **Block widgets (a `StateField`):** CodeMirror only allows decorations that span lines or add block widgets to come from a state field, not a view plugin.
 - **Images:** shown below the `![alt](src)` text. When the cursor isn't on that line, the image replaces the text.
 - **Task checkboxes:** clicking one toggles `[ ]` ↔ `[x]` with a one-character edit.
-- **Tables, math blocks, Mermaid diagrams, horizontal rules:** shown rendered while the cursor is outside the block; moving the cursor into the block shows its source.
+- **Tables, math blocks, Mermaid diagrams, horizontal rules:** shown rendered while the cursor is outside the block; moving the cursor into the block shows its source. They are drawn at the top level and inside (nested) list items, indented under the item's text (`blockPlace` in `blocks.ts`). Inside a quote they are shown as source, and so is a table on the line of a list marker.
 - **Front matter:** shown as a bordered summary of its `key: value` lines. Clicking it or moving the cursor in shows the YAML source as plain monospace text.
 - **Raw HTML blocks:** shown as source by default. The `mdEditor.renderHtml` setting draws them after sanitizing with DOMPurify (no scripts, styles, forms or frames; links never navigate; images resolve like Markdown images).
 - Widgets are not in `EditorView.atomicRanges`: CodeMirror already skips a replaced range with the arrow keys, and the cursor reaching its edge counts as touching it (see `reveal.ts`), so the source appears. Clicking a widget puts the cursor in its source.
@@ -152,6 +152,7 @@ Everything below is a CodeMirror decoration or widget over unchanged text. **Not
 **Design rules:**
 - **Revealing symbols must not change line heights.** A heading keeps its size when its `#` is shown. This limits the text-shifting problem that early reviews mention in the built-in editor.
 - Symbols are revealed only for the node the cursor is in, not the whole line, and never on mouse hover.
+- A file opens fully drawn: the cursor starts at the top, but nothing is revealed until the first click, key press or cursor move (`pristineField` in `reveal.ts`).
 - **Links:** Ctrl/Cmd+click opens them (same as VS Code). A plain click places the cursor, so link text stays easy to edit.
 - **Images:** `asWebviewUri` only exists on the host, so the host sends `baseUri` (= `asWebviewUri` of the document's folder) in `init`. The image widget resolves relative `src` values against it. `localResourceRoots` includes the document's folder and all workspace folders.
 
@@ -349,6 +350,15 @@ script-src 'nonce-${nonce}';
   8. [x] Trusted publisher, for releases from CI without a token: Settings → Trusted Publishers → Register, namespace `zhongwu`, GitHub, extension `mk-editor-ext`, owner `zhongwu`, repository `MkEditorExt`, workflow `publish.yml`, no environment. One per extension; renaming or moving the repository means making it again, and a publish with a token (`--pat` or `OVSX_PAT`) takes precedence over it.
   9. [x] Tested: `publish.yml` builds one `.vsix`, publishes it to the Marketplace (`vsce publish --oidc --packagePath`) and then to Open VSX (`ovsx publish --trusted-publishing`). The 0.1.5 release (2026-10-30) ran both from CI with no token, and the package from Open VSX installs and looks the same in Cursor and VSCodium as in VS Code. If one step fails in a later release, the other registry is unaffected unless it ran later in the job, so re-run only the failed step by hand. Cursor's search can take a while to show a new extension; installing from the `.vsix` works at once. VS Code, Cursor and VSCodium show "publisher not verified" until the publisher proves a domain, which is not needed.
   - The `publisher` casing in `package.json` must match the namespace exactly.
+- [ ] **Translations.** The interface follows VS Code's display language. Simplified Chinese (`zh-cn`) and Traditional Chinese (`zh-tw`, Taiwan terms) are done (2026-11-01); Japanese (`ja`) and Korean (`ko`) come later. The extension's name stays in English in every language.
+  - `package.json` texts (command titles, setting descriptions, the description) are `%key%` entries, with the English in `package.nls.json` and each language in `package.nls.<lang>.json`. vsce puts the English into the Marketplace manifest.
+  - Extension host messages use `vscode.l10n.t('English text', …)`; the translations are in `l10n/bundle.l10n.<lang>.json` (`"l10n": "./l10n"` in `package.json`).
+  - `vscode.l10n` does not work in the webview, so the host puts `vscode.l10n.bundle` on the page's `<body data-l10n>` and the webview reads it with its own `l10n.t` (`webview/l10n.ts`); the page's `lang` is VS Code's language. The webview and host share one bundle per language.
+  - `test/unit/l10n.test.ts` finds every `l10n.t('…')` call and checks that each language has exactly those messages, with the same `{0}` placeholders, and that `package.nls.<lang>.json` keeps code and setting links. Adding a language: add it to `LANGUAGES` in that test, then write the two files.
+  - The READMEs: `README.zh-CN.md` and `README.zh-TW.md`, linked from a language line at the top of each README. The Marketplace and Open VSX only show `README.md`; the others are read on GitHub (`.vscodeignore` leaves them out of the package). In Chinese Markdown, keep full-width punctuation outside `**bold**`, or CommonMark does not close it.
+  - Not translated: GitHub alert titles (Note, Tip…) stay in English as on GitHub, the HTML/PDF export keeps its English alert titles, and error details from KaTeX and Mermaid come from those libraries.
+  - [ ] A native speaker checks the Chinese text, especially the technical terms.
+  - [ ] Japanese and Korean.
 
 **Total for one developer: about 5 weeks.**
 
