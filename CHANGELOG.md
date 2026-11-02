@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 (2026-11-01)
+
+- Math (`$$` blocks and `math` fences) and Mermaid diagrams are drawn inside bulleted and numbered lists, at any depth, indented under the list text. Before, they were shown as source there.
+- A Mermaid diagram inside a list keeps all its lines. Before, only the first line was read.
+
 ## 0.1.5 (2026-10-30)
 
 - The extension is also on Open VSX, for VSCodium, Cursor and other editors that use it.
