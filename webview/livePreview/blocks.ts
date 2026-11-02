@@ -42,9 +42,18 @@ export type BlockItem =
   | { type: 'image'; from: number; to: number; src: string; alt: string; revealed: boolean }
   /** `offset`: where the `[ ]` character to toggle sits, counted from `from`. */
   | { type: 'checkbox'; from: number; to: number; checked: boolean; offset: number }
-  | { type: 'math'; from: number; to: number; tex: string; display: boolean }
-  | { type: 'mermaid'; from: number; to: number; source: string }
+  /**
+   * A formula or diagram in a list item: `indent` is how far it is indented, and `inline` means
+   * it starts on the line of the list marker, so it is drawn in that line instead of as a block.
+   */
+  | ({ type: 'math'; from: number; to: number; tex: string; display: boolean } & Nesting)
+  | ({ type: 'mermaid'; from: number; to: number; source: string } & Nesting)
   | { type: 'html'; from: number; to: number; html: string };
+
+interface Nesting {
+  indent?: number;
+  inline?: true;
+}
 
 /** Whether raw HTML blocks are drawn (the `mdEditor.renderHtml` setting). Off by default. */
 export const renderHtmlFacet = Facet.define<boolean, boolean>({
@@ -107,6 +116,32 @@ function inlineSpans(doc: Text, node: SyntaxNode, from = node.from, to = node.to
   }
   text(pos, to);
   return out;
+}
+
+/** The code inside a fence. In a list item each line has its own `CodeText`, without the indent. */
+function codeText(doc: Text, node: SyntaxNode): string {
+  return node
+    .getChildren('CodeText')
+    .map((code) => doc.sliceString(code.from, code.to))
+    .join('');
+}
+
+const LIST_NODES = new Set(['BulletList', 'OrderedList', 'ListItem']);
+
+/**
+ * Where a formula or diagram block is drawn: at the top level as it is, and in a (nested) list
+ * item from the start of its line, indented to match. Elsewhere, such as in a quote, it is not drawn.
+ */
+function blockPlace(doc: Text, node: SyntaxNode): ({ from: number } & Nesting) | null {
+  for (let parent = node.parent; parent && parent.name !== 'Document'; parent = parent.parent) {
+    if (!LIST_NODES.has(parent.name)) return null;
+  }
+  const line = doc.lineAt(node.from);
+  const indent = node.from - line.from;
+  if (indent === 0) return { from: node.from };
+  if (/^\s*$/.test(doc.sliceString(line.from, node.from))) return { from: line.from, indent };
+  // "- $$ x $$": the list marker is on the same line.
+  return { from: node.from, inline: true };
 }
 
 function trimmed(spans: Span[]): Span[] {
@@ -229,28 +264,28 @@ export function collectBlocks(
           return false;
         }
         case 'BlockMath': {
-          if (topLevel && !touched(node.from, node.to)) {
+          const place = blockPlace(doc, node);
+          if (place && !touched(place.from, node.to)) {
             const marks = node.getChildren('MathMark');
             const close = marks.length > 1 ? marks[marks.length - 1] : undefined;
             const tex = doc.sliceString(marks[0].to, close ? close.from : node.to).trim();
-            if (tex) items.push({ type: 'math', from: node.from, to: node.to, tex, display: true });
+            if (tex) items.push({ type: 'math', ...place, to: node.to, tex, display: true });
           }
           return false;
         }
         case 'FencedCode': {
           const info = node.getChild('CodeInfo');
           const language = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
-          if (topLevel && (language === 'math' || language === 'mermaid')) {
-            if (!touched(node.from, node.to)) {
-              const code = node.getChild('CodeText');
-              const source = code ? doc.sliceString(code.from, code.to).trim() : '';
-              if (source) {
-                items.push(
-                  language === 'math'
-                    ? { type: 'math', from: node.from, to: node.to, tex: source, display: true }
-                    : { type: 'mermaid', from: node.from, to: node.to, source },
-                );
-              }
+          const place =
+            language === 'math' || language === 'mermaid' ? blockPlace(doc, node) : null;
+          if (place && !touched(place.from, node.to)) {
+            const source = codeText(doc, node).trim();
+            if (source) {
+              items.push(
+                language === 'math'
+                  ? { type: 'math', ...place, to: node.to, tex: source, display: true }
+                  : { type: 'mermaid', ...place, to: node.to, source },
+              );
             }
           }
           return false;
@@ -316,8 +351,8 @@ function blockRanges(items: readonly BlockItem[], baseUri: string): Range<Decora
       case 'math':
         ranges.push(
           Decoration.replace({
-            widget: new MathWidget(item.tex, item.display),
-            block: item.display,
+            widget: new MathWidget(item.tex, item.display, item.indent),
+            block: item.display && !item.inline,
           }).range(item.from, item.to),
         );
         break;
@@ -331,10 +366,10 @@ function blockRanges(items: readonly BlockItem[], baseUri: string): Range<Decora
         break;
       case 'mermaid':
         ranges.push(
-          Decoration.replace({ widget: new MermaidWidget(item.source), block: true }).range(
-            item.from,
-            item.to,
-          ),
+          Decoration.replace({
+            widget: new MermaidWidget(item.source, item.indent),
+            block: !item.inline,
+          }).range(item.from, item.to),
         );
         break;
       case 'checkbox':

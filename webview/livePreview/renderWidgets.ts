@@ -5,20 +5,27 @@ import { EditorView, WidgetType } from '@codemirror/view';
 import { loadKatex, loadMermaid } from './lazy';
 import { revealOnMouseDown } from './widgets';
 
+/** Moves a formula or diagram in a list item in by `indent` characters, to sit under its text. */
+function indentBy(el: HTMLElement, view: EditorView, indent: number): void {
+  if (indent > 0) el.style.marginLeft = `calc(24px + ${indent * view.defaultCharacterWidth}px)`;
+}
+
 export class MathWidget extends WidgetType {
   constructor(
     readonly tex: string,
     readonly display: boolean,
+    readonly indent = 0,
   ) {
     super();
   }
   eq(other: MathWidget): boolean {
-    return this.tex === other.tex && this.display === other.display;
+    return this.tex === other.tex && this.display === other.display && this.indent === other.indent;
   }
   toDOM(view: EditorView): HTMLElement {
     const el = document.createElement(this.display ? 'div' : 'span');
     el.className = this.display ? 'cm-md-math cm-md-math-display' : 'cm-md-math';
     el.textContent = this.tex;
+    if (this.display) indentBy(el, view, this.indent);
     loadKatex()
       .then((katex) => {
         el.textContent = '';
@@ -69,19 +76,23 @@ export function drawDiagrams(sources: string[]): Promise<(string | null)[]> {
 }
 
 export class MermaidWidget extends WidgetType {
-  constructor(readonly source: string) {
+  constructor(
+    readonly source: string,
+    readonly indent = 0,
+  ) {
     super();
   }
   eq(other: MermaidWidget): boolean {
-    return this.source === other.source;
+    return this.source === other.source && this.indent === other.indent;
   }
   toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('div');
     el.className = 'cm-md-mermaid';
+    indentBy(el, view, this.indent);
     el.setAttribute('role', 'img');
     el.setAttribute(
       'aria-label',
-      `Mermaid diagram: ${this.source.replace(/s+/g, ' ').trim().slice(0, 200)}`,
+      `Mermaid diagram: ${this.source.replace(/\s+/g, ' ').trim().slice(0, 200)}`,
     );
     el.textContent = 'Rendering diagram…';
     renderDiagram(this.source, mermaidTheme())
