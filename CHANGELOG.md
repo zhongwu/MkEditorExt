@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 (2026-11-02)
+
+- Tables inside bulleted and numbered lists are drawn as tables, indented under the list text, and their cells can be edited in place. Before, they were shown as source.
+- A horizontal rule (`---`) inside a list is drawn as a line. Before, it was shown as source.
+- A file opens fully drawn. Before, its first line showed its Markdown symbols because the cursor started there. The symbols appear once you click, type or move the cursor.
+- The interface is translated into Simplified and Traditional Chinese, following VS Code's display language. The README is also available in both.
+
 ## 0.1.6 (2026-11-01)
 
 - Math (`$$` blocks and `math` fences) and Mermaid diagrams are drawn inside bulleted and numbered lists, at any depth, indented under the list text. Before, they were shown as source there.
