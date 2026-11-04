@@ -61,7 +61,7 @@ export const livePreviewTheme = EditorView.theme({
   '.cm-md-alert-tip': { '--md-alert-color': 'var(--vscode-testing-iconPassed, #3fb950)' },
   '.cm-md-alert-important': { '--md-alert-color': 'var(--vscode-charts-purple, #a371f7)' },
   '.cm-md-alert-warning': { '--md-alert-color': 'var(--vscode-editorWarning-foreground)' },
-  '.cm-md-alert-caution': { '--md-alert-color': 'var(--vscode-editorError-foreground)' },
+  '.cm-md-alert-caution': { '--md-alert-color': 'var(--vscode-editorError-foreground, #f14c4c)' },
   '.cm-md-alert-title': { color: 'var(--md-alert-color)', fontWeight: '600' },
 
   '.cm-md-footnote-ref': {
@@ -137,6 +137,13 @@ export const livePreviewTheme = EditorView.theme({
     color: 'var(--vscode-editor-background)',
   },
   '.cm-md-checkbox-checked::after': { content: '"\u2713"' },
+  // The third state, `\u2612`: crossed out, in the error colour.
+  '.cm-md-checkbox-crossed': {
+    backgroundColor: 'var(--vscode-editorError-foreground, #f14c4c)',
+    borderColor: 'var(--vscode-editorError-foreground, #f14c4c)',
+    color: 'var(--vscode-editor-background)',
+  },
+  '.cm-md-checkbox-crossed::after': { content: '"\u2715"' },
 
   '.cm-md-table td, .cm-md-table th': { cursor: 'text' },
   '.cm-md-table [contenteditable]': {

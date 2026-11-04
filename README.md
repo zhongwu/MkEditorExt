@@ -29,7 +29,7 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 - **Source mode:** plain Markdown with syntax highlighting. It is also the best mode for screen readers.
 - **Reading mode:** fully rendered and read-only.
 - **GitHub-style Markdown:** tables, task lists, strikethrough, autolinks, alerts (`> [!NOTE]`), footnotes, front matter, math with KaTeX (`$x^2$` and `$$…$$`) and Mermaid diagrams.
-- **Tables you can edit in place:** click a cell and type. Tab moves to the next cell. Only that cell's text changes in the file. A `☐` or `☑` anywhere in a cell is drawn as a checkbox, and a click switches it. While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell. They are ordinary characters, so every app shows them.
+- **Tables you can edit in place:** click a cell and type. Tab moves to the next cell. Only that cell's text changes in the file. A `☐`, `☑` or `☒` anywhere in a cell is drawn as a checkbox, and each click goes to the next of the three (open, done, crossed out, then open again). While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell. They are ordinary characters, so every app shows them.
 - **Task checkboxes:** a click toggles `[ ]` and `[x]`, a one-character edit.
 - **Formatting toolbar and shortcuts**, list continuation on Enter, and pasted links.
 - **Images:** paste or drop an image file (hold Shift while dropping) and it is saved to an `assets/` folder next to the document. Or use the Image button.

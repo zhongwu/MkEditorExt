@@ -29,6 +29,13 @@ export function cellRanges(lineFrom: number, text: string): CellRange[] {
   return ranges;
 }
 
+const NEXT_BOX: Record<string, string> = { '☐': '☑', '☑': '☒', '☒': '☐' };
+
+/** The box a click on `box` turns it into: `☐` to `☑` to `☒` and back to `☐`. */
+export function nextBox(box: string): string {
+  return NEXT_BOX[box] ?? '☐';
+}
+
 /**
  * `[ ]` becomes `☐` and `[x]` becomes `☑`, so the file holds characters that every app shows.
  * Text in `code` and a bracket after a backslash are left as they are.

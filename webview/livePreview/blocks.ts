@@ -18,14 +18,17 @@ import { isTouched, pristineField, readingFacet, revealSelection } from './revea
 import { cellRanges, type CellRange } from './tableEdit';
 import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget } from './widgets';
 
+/** The three states of a box in a table cell: `☐`, `☑` and `☒`. */
+export type BoxState = 'open' | 'done' | 'crossed';
+
 /** A piece of inline text inside a table cell. */
 export type Span =
   | { type: 'text'; text: string }
   /**
-   * A box in the text, `☐` or `☑`: `at` is where it starts, counted from the start of the table,
-   * and `length` is how many characters it takes (2 with the variation selector of the emoji form).
+   * A box in the text, `☐`, `☑` or `☒`: `at` is where it starts, counted from the start of the
+   * table, and `length` is how many characters it takes (2 with the emoji form's variation selector).
    */
-  | { type: 'task'; checked: boolean; at: number; length: number }
+  | { type: 'task'; state: BoxState; at: number; length: number }
   | { type: 'em' | 'strong' | 'del' | 'code'; children: Span[] }
   | { type: 'link'; href: string; children: Span[] };
 
@@ -76,8 +79,10 @@ interface SpanContext {
 /** The invisible character an emoji picker adds after a symbol to ask for its emoji form. */
 const EMOJI_FORM = String.fromCharCode(0xfe0f);
 
-/** `☐` or `☑`, with the emoji form's variation selector if it has one. */
-const TASK_BOX = new RegExp(`(☐|☑)${EMOJI_FORM}?`, 'g');
+/** `☐` or `☑` or `☒`, with the emoji form's variation selector if it has one. */
+const TASK_BOX = new RegExp(`(☐|☑|☒)${EMOJI_FORM}?`, 'g');
+
+const BOX_STATES: Record<string, BoxState> = { '☐': 'open', '☑': 'done', '☒': 'crossed' };
 
 /** The inline content of `node` between `from` and `to`, without its Markdown symbols. */
 function inlineSpans(
@@ -97,7 +102,7 @@ function inlineSpans(
       if (box.index > last) out.push({ type: 'text', text: slice.slice(last, box.index) });
       out.push({
         type: 'task',
-        checked: box[1] === '☑',
+        state: BOX_STATES[box[1]],
         at: a + box.index - ctx.origin,
         length: box[0].length,
       });

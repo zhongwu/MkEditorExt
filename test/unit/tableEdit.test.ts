@@ -5,7 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { collectBlocks } from '../../webview/livePreview/blocks';
 import type { EditorView } from '@codemirror/view';
 import { insertBoxAtCursor } from '../../webview/livePreview/widgets';
-import { cellChange, cellRanges } from '../../webview/livePreview/tableEdit';
+import { cellChange, cellRanges, nextBox } from '../../webview/livePreview/tableEdit';
 
 function cells(line: string, from = 0): string[] {
   return cellRanges(from, line).map((r) => line.slice(r.from - from, r.to - from));
@@ -107,6 +107,19 @@ describe('task boxes in table cells', () => {
     if (table?.type !== 'table') throw new Error('no table');
     return { table, spans: (row === 0 ? table.data.header : table.data.rows[row - 1])[col] };
   };
+  it('has three states: ☐ open, ☑ done and ☒ crossed, and a click goes round them', () => {
+    const three = '| A | B | C |\n|---|---|---|\n| ☐ | ☑ | ☒ |\n\nend\n';
+    expect([0, 1, 2].map((col) => cellOf(three, 1, col).spans[0])).toMatchObject([
+      { type: 'task', state: 'open' },
+      { type: 'task', state: 'done' },
+      { type: 'task', state: 'crossed' },
+    ]);
+    expect(nextBox('☐')).toBe('☑');
+    expect(nextBox('☑')).toBe('☒');
+    expect(nextBox('☒')).toBe('☐');
+    expect(nextBox('x')).toBe('☐');
+  });
+
   describe('the characters ☐ and ☑', () => {
     // The last cell has ☑ in its emoji form: the character followed by U+FE0F.
     const emoji = '☑' + String.fromCharCode(0xfe0f);
@@ -114,18 +127,18 @@ describe('task boxes in table cells', () => {
 
     it('are boxes anywhere in a cell, not only when they are the whole cell', () => {
       expect(cellOf(glyphs, 1, 0).spans).toMatchObject([
-        { type: 'task', checked: false, length: 1 },
+        { type: 'task', state: 'open', length: 1 },
       ]);
       expect(cellOf(glyphs, 1, 1).spans).toMatchObject([
         { type: 'text', text: 'go ' },
-        { type: 'task', checked: true },
+        { type: 'task', state: 'done' },
         { type: 'text', text: ' now' },
       ]);
     });
 
     it('take the emoji form with them, so a click replaces all of it', () => {
       const { table, spans } = cellOf(glyphs, 1, 2);
-      expect(spans[0]).toMatchObject({ type: 'task', checked: true, length: 2 });
+      expect(spans[0]).toMatchObject({ type: 'task', state: 'done', length: 2 });
       const box = spans[0];
       if (box.type !== 'task') throw new Error('no box');
       expect(glyphs.slice(table.from + box.at, table.from + box.at + box.length)).toBe(emoji);

@@ -6,7 +6,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
-import { cellChange, cellRanges } from './tableEdit';
+import { cellChange, cellRanges, nextBox } from './tableEdit';
 
 /**
  * Clicking a widget puts the cursor at the start of its source, which shows the source instead.
@@ -30,10 +30,18 @@ function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
     }
     if (span.type === 'task') {
       const box = document.createElement('span');
-      box.className = 'cm-md-checkbox' + (span.checked ? ' cm-md-checkbox-checked' : '');
+      const modifier = {
+        open: '',
+        done: ' cm-md-checkbox-checked',
+        crossed: ' cm-md-checkbox-crossed',
+      };
+      box.className = 'cm-md-checkbox' + modifier[span.state];
       box.setAttribute('role', 'checkbox');
-      box.setAttribute('aria-checked', String(span.checked));
-      box.setAttribute('aria-label', l10n.t('Task'));
+      box.setAttribute('aria-checked', String(span.state === 'done'));
+      box.setAttribute(
+        'aria-label',
+        span.state === 'crossed' ? l10n.t('Task (crossed out)') : l10n.t('Task'),
+      );
       box.dataset.at = String(span.at);
       box.dataset.length = String(span.length);
       parent.append(box);
@@ -303,9 +311,9 @@ export class TableWidget extends WidgetType {
       event.preventDefault();
       const box = (event.target as Element).closest<HTMLElement>('.cm-md-checkbox');
       if (box && td && !event.shiftKey && !view.state.readOnly) {
-        // A box in the cell: swap `☐` and `☑` (the emoji form is replaced by the plain one).
+        // A box in the cell: `☐` to `☑` to `☒` and back (the emoji form is replaced by the plain one).
         const from = view.posAtDOM(table) + Number(box.dataset.at);
-        const insert = view.state.doc.sliceString(from, from + 1) === '☐' ? '☑' : '☐';
+        const insert = nextBox(view.state.doc.sliceString(from, from + 1));
         view.dispatch({
           changes: { from, to: from + Number(box.dataset.length), insert },
           userEvent: 'input.type',
