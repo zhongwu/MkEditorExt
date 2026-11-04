@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.9 (2026-11-03)
+
+- A table cell box has a third state, `☒` (crossed out, drawn in red). Each click goes `☐`, `☑`, `☒` and back to `☐`.
+- The extension is listed under the categories Programming Languages, Visualization and Other (it was only Other), so it shows up where people look for Markdown tools.
+
 ## 0.1.8 (2026-11-03)
 
 - A `☐` or `☑` anywhere in a table cell (the emoji form from the Windows emoji picker too) is drawn as a checkbox, and a click switches it, a one-character edit. While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell (not in `code`). They are ordinary characters, so every app shows them.
