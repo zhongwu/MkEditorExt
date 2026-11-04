@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 (2026-11-03)
+
+- A `☐` or `☑` anywhere in a table cell (the emoji form from the Windows emoji picker too) is drawn as a checkbox, and a click switches it, a one-character edit. While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell (not in `code`). They are ordinary characters, so every app shows them.
+- Table columns no longer shrink until a word is split into single letters (`ID` showed as `I` and `D`). This made header cells tiny and hard to click.
+
 ## 0.1.7 (2026-11-02)
 
 - Tables inside bulleted and numbered lists are drawn as tables, indented under the list text, and their cells can be edited in place. Before, they were shown as source.
