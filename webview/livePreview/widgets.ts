@@ -6,7 +6,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
-import { cellChange, cellRanges, nextBox } from './tableEdit';
+import { cellChange, cellRanges, insertRowChange, nextBox } from './tableEdit';
 
 /**
  * Clicking a widget puts the cursor at the start of its source, which shows the source instead.
@@ -267,6 +267,21 @@ export class TableWidget extends WidgetType {
           const flat = grid.flatMap((cells, r) => cells.map((_, c) => [r, c] as [number, number]));
           const at = flat.findIndex(([r, c]) => r === row && c === col);
           target = flat[at + step];
+          if (!target && step === 1 && !view.state.readOnly) {
+            // Tab in the last cell of the table: append a new row and start editing its first cell.
+            const lastRowRanges = data.ranges[data.ranges.length - 1];
+            const lastCellRange = lastRowRanges?.[lastRowRanges.length - 1];
+            const line = lastCellRange
+              ? view.state.doc.lineAt(origin + lastCellRange.to)
+              : undefined;
+            if (line) {
+              const newRow = insertRowChange(line, data.header.length);
+              const changes = change ? [change, newRow] : [newRow];
+              resume = { pos: origin, row: row + 1, col: 0 };
+              view.dispatch({ changes, userEvent: 'input.type' });
+              return;
+            }
+          }
         }
         if (change) {
           // The edit redraws the table; the new widget picks up where this one left off.

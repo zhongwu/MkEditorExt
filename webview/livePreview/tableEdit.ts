@@ -69,3 +69,15 @@ export function cellChange(
   if (text === original.trim()) return null;
   return { from: range.from, to: range.to, insert: text ? ` ${text} ` : ' ' };
 }
+
+/**
+ * The change that appends a new empty row to a table on `tableLastLine`.
+ */
+export function insertRowChange(
+  tableLastLine: { to: number; text: string },
+  colCount: number,
+): { from: number; to: number; insert: string } {
+  const indent = /^\s*/.exec(tableLastLine.text)?.[0] ?? '';
+  const insert = '\n' + indent + '|' + '  |'.repeat(colCount);
+  return { from: tableLastLine.to, to: tableLastLine.to, insert };
+}

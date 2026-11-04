@@ -12,6 +12,9 @@ describe('renderHtml', () => {
     expect(html).toContain('<title>My Doc</title>');
     expect(html).toContain('<h1 id="my-doc">');
     expect(html).toContain("default-src 'none'");
+
+    const setextHtml = page('My Setext Document\n==================\n\ntext\n');
+    expect(setextHtml).toContain('<title>My Setext Document</title>');
   });
 
   it('gives headings the same anchors as GitHub, numbering repeats', () => {

@@ -35,9 +35,13 @@ describe('findHeadings', () => {
     expect(findHeadings('- item\n---\n\n> quote\n---\n')).toEqual([]);
   });
 
-  it('removes Markdown symbols from the text', () => {
+  it('removes Markdown symbols from the text while keeping snake_case', () => {
     const [heading] = findHeadings('# The **bold** [link](http://x.y) and `code`\n');
     expect(heading.text).toBe('The bold link and code');
+
+    const [withUnderscores] = findHeadings('# A _note_ on pass_word_check and snake_case\n');
+    expect(withUnderscores.text).toBe('A note on pass_word_check and snake_case');
+    expect(withUnderscores.slug).toBe('a-note-on-pass_word_check-and-snake_case');
   });
 
   it('numbers repeated anchors the way GitHub does', () => {

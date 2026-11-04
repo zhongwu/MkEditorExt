@@ -15,7 +15,7 @@ import MarkdownIt, {
   type Token,
 } from 'markdown-it';
 import footnote from 'markdown-it-footnote';
-import { slugify } from './headings';
+import { findHeadings, slugify } from './headings';
 
 export interface ExportOptions {
   /** The page title; defaults to the first heading. */
@@ -334,10 +334,7 @@ export function renderHtml(markdown: string, options: ExportOptions = {}): strin
   const env: Env = {};
   const md = createParser(options);
   const article = md.render(body, env);
-  const title =
-    options.title ??
-    /^#{1,6}[ \t]+(.+?)[ \t#]*$/m.exec(body)?.[1].replace(/[*_`~]/g, '') ??
-    'Document';
+  const title = options.title ?? (findHeadings(markdown)[0]?.text || 'Document');
   const csp = "default-src 'none'; img-src data: https:; style-src 'unsafe-inline'; font-src data:";
   return `<!DOCTYPE html>
 <html lang="en">

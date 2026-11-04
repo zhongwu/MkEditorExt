@@ -29,14 +29,24 @@ interface OpenEditor {
   post(message: HostMessage): void;
   chooseImage(): Promise<void>;
   mode: Mode;
+  /** A line to scroll to once the page has loaded (a hidden tab's page is not loaded). */
+  pendingLine?: number;
+}
+
+interface DiagramRequest {
+  editor: OpenEditor;
+  timer: ReturnType<typeof setTimeout>;
+  resolve(svgs: (string | null)[] | undefined): void;
 }
 
 export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'mdEditor.editor';
 
   private readonly editors = new Set<OpenEditor>();
-  private readonly diagramRequests = new Map<number, (svgs: (string | null)[]) => void>();
+  private readonly diagramRequests = new Map<number, DiagramRequest>();
   private nextDiagramRequest = 1;
+  /** Lines to scroll to in editors that are about to open, by document. */
+  private readonly pendingReveals = new Map<string, number>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -127,9 +137,13 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
         this.diagramRequests.delete(id);
         resolve(undefined);
       }, DIAGRAM_TIMEOUT_MS);
-      this.diagramRequests.set(id, (svgs) => {
-        clearTimeout(timer);
-        resolve(svgs);
+      this.diagramRequests.set(id, {
+        editor,
+        timer,
+        resolve: (svgs) => {
+          clearTimeout(timer);
+          resolve(svgs);
+        },
       });
       editor.post({ type: 'drawDiagrams', id, sources });
     });
@@ -180,7 +194,9 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
         }
       },
       mode: this.initialMode(),
+      pendingLine: this.pendingReveals.get(document.uri.toString()),
     };
+    this.pendingReveals.delete(document.uri.toString());
     this.editors.add(editor);
 
     const subscriptions = [
@@ -194,12 +210,15 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         if (message.type === 'openLink') {
-          void openLink(document, message.href, editor);
+          void this.openLink(document, message.href, editor);
           return;
         }
         if (message.type === 'diagrams') {
-          this.diagramRequests.get(message.id)?.(message.svgs);
-          this.diagramRequests.delete(message.id);
+          const req = this.diagramRequests.get(message.id);
+          if (req) {
+            this.diagramRequests.delete(message.id);
+            req.resolve(message.svgs);
+          }
           return;
         }
         if (message.type === 'export') {
@@ -224,6 +243,11 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           post({ type: 'settings', settings: readSettings(webview, documentFolder) });
         }
         void sync.handleMessage(message);
+        if (message.type === 'ready' && editor.pendingLine !== undefined) {
+          // `init` has just been posted, so this arrives after it.
+          post({ type: 'revealLine', line: editor.pendingLine });
+          editor.pendingLine = undefined;
+        }
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         // Events with no content changes only report a dirty-state change.
@@ -240,6 +264,13 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     panel.onDidDispose(() => {
       this.editors.delete(editor);
       subscriptions.forEach((s) => s.dispose());
+      for (const [id, req] of this.diagramRequests) {
+        if (req.editor === editor) {
+          clearTimeout(req.timer);
+          this.diagramRequests.delete(id);
+          req.resolve(undefined);
+        }
+      }
     });
   }
 
@@ -274,6 +305,100 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
 </body>
 </html>`;
   }
+
+  /** Opens a Ctrl/Cmd+clicked link: web links in the browser, file links in VS Code. */
+  private async openLink(
+    document: vscode.TextDocument,
+    href: string,
+    editor: OpenEditor,
+  ): Promise<void> {
+    const documentUri = document.uri;
+    const target = classifyLink(href);
+    if (!target) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t("This link type can't be opened: {0}", href),
+      );
+      return;
+    }
+    switch (target.kind) {
+      case 'external':
+        await vscode.env.openExternal(vscode.Uri.parse(target.url));
+        return;
+      case 'file': {
+        let uri: vscode.Uri;
+        if (/^[a-zA-Z]:[\\/]/.test(target.path)) {
+          uri = vscode.Uri.file(target.path);
+        } else if (target.path.startsWith('/')) {
+          // Absolute links are relative to the workspace folder, as on GitHub.
+          const root = vscode.workspace.getWorkspaceFolder(documentUri)?.uri;
+          uri = root
+            ? vscode.Uri.joinPath(root, target.path)
+            : vscode.Uri.joinPath(documentUri, '..', target.path);
+        } else {
+          uri = vscode.Uri.joinPath(documentUri, '..', target.path);
+        }
+
+        // Relative link to an anchor in the current file: scroll in-place.
+        if (uri.toString() === documentUri.toString()) {
+          if (target.fragment) {
+            const heading = findAnchor(findHeadings(document.getText()), target.fragment);
+            if (heading) {
+              editor.post({ type: 'revealLine', line: heading.line });
+            }
+          }
+          return;
+        }
+
+        // Target file already open in one of our editors: reveal it and jump to anchor if present.
+        const open = [...this.editors].find(
+          (candidate) => candidate.document.uri.toString() === uri.toString(),
+        );
+        if (open) {
+          const heading = target.fragment
+            ? findAnchor(findHeadings(open.document.getText()), target.fragment)
+            : undefined;
+          if (heading) {
+            if (open.panel.visible) {
+              open.post({ type: 'revealLine', line: heading.line });
+            } else {
+              // A hidden page is reloaded when shown, and would lose a message sent now.
+              open.pendingLine = heading.line;
+            }
+          }
+          open.panel.reveal();
+          return;
+        }
+
+        if (target.fragment) {
+          try {
+            const targetDoc = await vscode.workspace.openTextDocument(uri);
+            const heading = findAnchor(findHeadings(targetDoc.getText()), target.fragment);
+            if (heading) {
+              // Open it in this editor, which scrolls to the line once its page has loaded.
+              this.pendingReveals.set(uri.toString(), heading.line);
+              await vscode.commands.executeCommand(
+                'vscode.openWith',
+                uri,
+                MdEditorProvider.viewType,
+              );
+              return;
+            }
+          } catch {
+            // Target document could not be read; open normally.
+          }
+        }
+        await vscode.commands.executeCommand('vscode.open', uri);
+        return;
+      }
+      case 'anchor': {
+        const heading = findAnchor(findHeadings(document.getText()), target.fragment);
+        if (heading) {
+          editor.post({ type: 'revealLine', line: heading.line });
+        }
+        return;
+      }
+    }
+  }
 }
 
 function escapeAttribute(text: string): string {
@@ -292,50 +417,6 @@ function readSettings(webview: vscode.Webview, documentFolder: vscode.Uri): Edit
     renderHtml: config.get<boolean>('renderHtml', false),
     customCss: config.get<string>('customCss', '').slice(0, MAX_CUSTOM_CSS),
   };
-}
-
-/** Opens a Ctrl/Cmd+clicked link: web links in the browser, file links in VS Code. */
-async function openLink(
-  document: vscode.TextDocument,
-  href: string,
-  editor: OpenEditor,
-): Promise<void> {
-  const documentUri = document.uri;
-  const target = classifyLink(href);
-  if (!target) {
-    void vscode.window.showWarningMessage(
-      vscode.l10n.t("This link type can't be opened: {0}", href),
-    );
-    return;
-  }
-  switch (target.kind) {
-    case 'external':
-      await vscode.env.openExternal(vscode.Uri.parse(target.url));
-      return;
-    case 'file': {
-      let uri: vscode.Uri;
-      if (/^[a-zA-Z]:[\\/]/.test(target.path)) {
-        uri = vscode.Uri.file(target.path);
-      } else if (target.path.startsWith('/')) {
-        // Absolute links are relative to the workspace folder, as on GitHub.
-        const root = vscode.workspace.getWorkspaceFolder(documentUri)?.uri;
-        uri = root
-          ? vscode.Uri.joinPath(root, target.path)
-          : vscode.Uri.joinPath(documentUri, '..', target.path);
-      } else {
-        uri = vscode.Uri.joinPath(documentUri, '..', target.path);
-      }
-      await vscode.commands.executeCommand('vscode.open', uri);
-      return;
-    }
-    case 'anchor': {
-      const heading = findAnchor(findHeadings(document.getText()), target.fragment);
-      if (heading) {
-        editor.post({ type: 'revealLine', line: heading.line });
-      }
-      return;
-    }
-  }
 }
 
 function toWorkspaceEdit(uri: vscode.Uri, changes: readonly TextChange[]): vscode.WorkspaceEdit {

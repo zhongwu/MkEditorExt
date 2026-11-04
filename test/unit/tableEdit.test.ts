@@ -5,7 +5,12 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { collectBlocks } from '../../webview/livePreview/blocks';
 import type { EditorView } from '@codemirror/view';
 import { insertBoxAtCursor } from '../../webview/livePreview/widgets';
-import { cellChange, cellRanges, nextBox } from '../../webview/livePreview/tableEdit';
+import {
+  cellChange,
+  cellRanges,
+  insertRowChange,
+  nextBox,
+} from '../../webview/livePreview/tableEdit';
 
 function cells(line: string, from = 0): string[] {
   return cellRanges(from, line).map((r) => line.slice(r.from - from, r.to - from));
@@ -70,6 +75,24 @@ describe('cellChange', () => {
 
   it('leaves a blank cell as a single space', () => {
     expect(cellChange(range, ' a ', '   ')?.insert).toBe(' ');
+  });
+});
+
+describe('insertRowChange', () => {
+  it('appends an empty row matching the column count and indentation', () => {
+    const line = { to: 20, text: '| a | b |' };
+    expect(insertRowChange(line, 2)).toEqual({
+      from: 20,
+      to: 20,
+      insert: '\n|  |  |',
+    });
+
+    const indentedLine = { to: 45, text: '    | x | y | z |' };
+    expect(insertRowChange(indentedLine, 3)).toEqual({
+      from: 45,
+      to: 45,
+      insert: '\n    |  |  |  |',
+    });
   });
 });
 

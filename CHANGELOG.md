@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.10 (2026-11-04)
+
+- A link to another file with a heading, such as `other.md#usage`, opens that file in this editor at the heading. Before, it opened at the top, or in the plain text editor. The same works when the file is already open in a background tab, and a link to the current file scrolls in place.
+- Heading text keeps the underscores inside words (`pass_word_check`) and drops those used for emphasis (`_note_`). This also fixes `#anchor` links to such headings.
+- The HTML and PDF export takes its title from a heading underlined with `===` or `---` too. Before, it was "Document".
+- Closing the editor during an export no longer leaves it waiting for the diagrams.
+- A button in the title bar of a Markdown file opens it in this editor.
+- Tab in the last cell of a table adds a new row.
+
 ## 0.1.9 (2026-11-03)
 
 - A table cell box has a third state, `☒` (crossed out, drawn in red). Each click goes `☐`, `☑`, `☒` and back to `☐`.

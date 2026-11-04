@@ -24,7 +24,7 @@ function plainText(markdown: string): string {
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/[*~`]+/g, '')
       // Underscores are emphasis only at the edge of a word; `snake_case` keeps its own.
-      .replace(/(^|s)_+|_+(?=s|$)/g, '$1')
+      .replace(/(^|\s)_+|_+(?=\s|$)/g, '$1')
       .trim()
   );
 }
