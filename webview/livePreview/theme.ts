@@ -85,6 +85,10 @@ export const livePreviewTheme = EditorView.theme({
   '.cm-md-table th, .cm-md-table td': {
     border: '1px solid var(--vscode-textBlockQuote-border)',
     padding: '3px 10px',
+    // The editor's line wrapping breaks text "anywhere", which lets a narrow column shrink until a
+    // word is split into single letters. Here a word is only broken if it cannot fit on a line.
+    wordBreak: 'normal',
+    overflowWrap: 'break-word',
   },
   '.cm-md-table th': {
     fontWeight: '600',

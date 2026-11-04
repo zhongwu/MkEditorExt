@@ -21,6 +21,11 @@ import { CheckboxWidget, FrontMatterWidget, HrWidget, ImageWidget, TableWidget }
 /** A piece of inline text inside a table cell. */
 export type Span =
   | { type: 'text'; text: string }
+  /**
+   * A box in the text, `☐` or `☑`: `at` is where it starts, counted from the start of the table,
+   * and `length` is how many characters it takes (2 with the variation selector of the emoji form).
+   */
+  | { type: 'task'; checked: boolean; at: number; length: number }
   | { type: 'em' | 'strong' | 'del' | 'code'; children: Span[] }
   | { type: 'link'; href: string; children: Span[] };
 
@@ -62,12 +67,43 @@ export const renderHtmlFacet = Facet.define<boolean, boolean>({
 
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark', 'LinkMark']);
 
+/** What `inlineSpans` needs to find task boxes: where positions are counted from, and whether to. */
+interface SpanContext {
+  origin: number;
+  tasks: boolean;
+}
+
+/** The invisible character an emoji picker adds after a symbol to ask for its emoji form. */
+const EMOJI_FORM = String.fromCharCode(0xfe0f);
+
+/** `☐` or `☑`, with the emoji form's variation selector if it has one. */
+const TASK_BOX = new RegExp(`(☐|☑)${EMOJI_FORM}?`, 'g');
+
 /** The inline content of `node` between `from` and `to`, without its Markdown symbols. */
-function inlineSpans(doc: Text, node: SyntaxNode, from = node.from, to = node.to): Span[] {
+function inlineSpans(
+  doc: Text,
+  node: SyntaxNode,
+  ctx: SpanContext,
+  from = node.from,
+  to = node.to,
+): Span[] {
   const out: Span[] = [];
   let pos = from;
   const text = (a: number, b: number) => {
-    if (b > a) out.push({ type: 'text', text: doc.sliceString(a, b) });
+    if (b <= a) return;
+    const slice = doc.sliceString(a, b);
+    let last = 0;
+    for (const box of ctx.tasks ? slice.matchAll(TASK_BOX) : []) {
+      if (box.index > last) out.push({ type: 'text', text: slice.slice(last, box.index) });
+      out.push({
+        type: 'task',
+        checked: box[1] === '☑',
+        at: a + box.index - ctx.origin,
+        length: box[0].length,
+      });
+      last = box.index + box[0].length;
+    }
+    if (last < slice.length) out.push({ type: 'text', text: slice.slice(last) });
   };
   for (let child = node.firstChild; child; child = child.nextSibling) {
     if (child.to <= from) continue;
@@ -76,22 +112,28 @@ function inlineSpans(doc: Text, node: SyntaxNode, from = node.from, to = node.to
     pos = child.to;
     switch (child.name) {
       case 'Emphasis':
-        out.push({ type: 'em', children: inlineSpans(doc, child) });
+        out.push({ type: 'em', children: inlineSpans(doc, child, ctx) });
         break;
       case 'StrongEmphasis':
-        out.push({ type: 'strong', children: inlineSpans(doc, child) });
+        out.push({ type: 'strong', children: inlineSpans(doc, child, ctx) });
         break;
       case 'Strikethrough':
-        out.push({ type: 'del', children: inlineSpans(doc, child) });
+        out.push({ type: 'del', children: inlineSpans(doc, child, ctx) });
         break;
       case 'InlineCode':
-        out.push({ type: 'code', children: inlineSpans(doc, child) });
+        out.push({
+          type: 'code',
+          children: inlineSpans(doc, child, { ...ctx, tasks: false }),
+        });
         break;
       case 'Link': {
         const [open, close] = child.getChildren('LinkMark');
         const url = child.getChild('URL');
-        if (open && close) {
-          const children = inlineSpans(doc, child, open.to, close.from);
+        // "[x]" is read as a link to a reference that does not exist; it is the text "[x]".
+        if (!url && /^\[[xX]\]$/.test(doc.sliceString(child.from, child.to))) {
+          text(child.from, child.to);
+        } else if (open && close) {
+          const children = inlineSpans(doc, child, ctx, open.to, close.from);
           out.push(
             url
               ? { type: 'link', href: doc.sliceString(url.from, url.to), children }
@@ -164,7 +206,9 @@ function tableData(doc: Text, node: SyntaxNode, origin: number): TableData | und
   const head = node.getChild('TableHeader');
   if (!head) return undefined;
   const cells = (row: SyntaxNode) =>
-    row.getChildren('TableCell').map((cell) => trimmed(inlineSpans(doc, cell)));
+    row
+      .getChildren('TableCell')
+      .map((cell) => trimmed(inlineSpans(doc, cell, { origin, tasks: true })));
   const delimiterLine = doc.lineAt(head.to).number + 1;
   const delimiter = delimiterLine <= doc.lines ? doc.line(delimiterLine).text : '';
   const align = delimiter.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(alignOf);

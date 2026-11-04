@@ -30,9 +30,23 @@ export function cellRanges(lineFrom: number, text: string): CellRange[] {
 }
 
 /**
+ * `[ ]` becomes `☐` and `[x]` becomes `☑`, so the file holds characters that every app shows.
+ * Text in `code` and a bracket after a backslash are left as they are.
+ */
+function boxCharacters(text: string): string {
+  return text
+    .split(/(`[^`]*`)/)
+    .map((part, index) =>
+      index % 2 === 1 ? part : part.replace(/(?<!\\)\[ \]/g, '☐').replace(/(?<!\\)\[[xX]\]/g, '☑'),
+    )
+    .join('');
+}
+
+/**
  * The change that makes a cell contain `typed`, or null if its text is already that. Only the
  * cell between its pipes is replaced, so nothing else in the table moves. Line breaks become
- * spaces and a typed `|` is escaped, since either would break the table.
+ * spaces and a typed `|` is escaped, since either would break the table. A typed `[ ]` or `[x]`
+ * becomes `☐` or `☑`, but only in a cell that was changed.
  */
 export function cellChange(
   range: CellRange,
@@ -44,5 +58,7 @@ export function cellChange(
     .trim()
     .replace(/(?<!\\)\|/g, '\\|');
   if (clean === original.trim()) return null;
-  return { from: range.from, to: range.to, insert: clean ? ` ${clean} ` : ' ' };
+  const text = boxCharacters(clean);
+  if (text === original.trim()) return null;
+  return { from: range.from, to: range.to, insert: text ? ` ${text} ` : ' ' };
 }

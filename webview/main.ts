@@ -5,6 +5,7 @@ import { imageAlt, imageMarkdown } from '../src/images';
 import { createEditor, remoteChange, revealLine, setRenderHtml } from './editor';
 import { readBase64 } from './imagePaste';
 import { configureAssets } from './livePreview/lazy';
+import { insertBoxAtCursor, insertInEditedCell } from './livePreview/widgets';
 import { drawDiagrams } from './livePreview/renderWidgets';
 import './livePreview/shared';
 import { setMode as applyModeToEditor } from './modes';
@@ -21,6 +22,12 @@ const toolbar = createToolbar(document.getElementById('toolbar') as HTMLElement,
   run: (name) => {
     if (name === 'image') {
       vscode.postMessage({ type: 'chooseImage' });
+    } else if (
+      (name === 'task' || name === 'toggleTask') &&
+      (insertInEditedCell(name === 'task' ? '☐' : '☑') ||
+        (view && insertBoxAtCursor(view, name === 'task' ? '☐' : '☑')))
+    ) {
+      // The cursor is in a table cell (being edited, or in the table's source): type a box.
     } else if (view) {
       commands[name](view);
       view.focus();

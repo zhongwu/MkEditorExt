@@ -1,10 +1,12 @@
 // The DOM for the block live preview widgets (see blocks.ts). Clicking a widget places the cursor
 // in its source, which shows the source instead; only the checkbox handles clicks itself.
 
+import { syntaxTree } from '@codemirror/language';
+import type { SyntaxNode } from '@lezer/common';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
-import { cellChange } from './tableEdit';
+import { cellChange, cellRanges } from './tableEdit';
 
 /**
  * Clicking a widget puts the cursor at the start of its source, which shows the source instead.
@@ -24,6 +26,17 @@ function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
   for (const span of spans) {
     if (span.type === 'text') {
       parent.append(span.text);
+      continue;
+    }
+    if (span.type === 'task') {
+      const box = document.createElement('span');
+      box.className = 'cm-md-checkbox' + (span.checked ? ' cm-md-checkbox-checked' : '');
+      box.setAttribute('role', 'checkbox');
+      box.setAttribute('aria-checked', String(span.checked));
+      box.setAttribute('aria-label', l10n.t('Task'));
+      box.dataset.at = String(span.at);
+      box.dataset.length = String(span.length);
+      parent.append(box);
       continue;
     }
     const tag = { em: 'em', strong: 'strong', del: 'del', code: 'code', link: 'span' }[span.type];
@@ -86,6 +99,76 @@ export class FrontMatterWidget extends WidgetType {
 }
 
 /** Where to continue editing after a cell edit has redrawn its table (Tab to the next cell). */
+/**
+ * Types `text` at the caret of the table cell being edited, if there is one (the toolbar's task
+ * buttons use this to put `☐` or `☑` in a cell). Returns false when no cell is being edited.
+ */
+export function insertInEditedCell(text: string): boolean {
+  const td = document.querySelector<HTMLElement>('.cm-md-table [data-editing]');
+  if (!td) return false;
+  td.focus();
+  const selection = window.getSelection();
+  if (!selection) return false;
+  if (!selection.rangeCount || !td.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+    selection.selectAllChildren(td);
+    selection.collapseToEnd();
+  }
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  // A space on each side, so the box is not stuck to the words next to it (a space at the end
+  // of the cell is dropped when the edit is saved).
+  const before = document.createRange();
+  before.selectNodeContents(td);
+  before.setEnd(range.startContainer, range.startOffset);
+  const spaced = (before.toString() && !/\s$/.test(before.toString()) ? ' ' : '') + text + ' ';
+  const node = document.createTextNode(spaced);
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+/**
+ * Types `box` into the table cell that has the cursor, when a table is shown as source: the cursor
+ * is in the table's text, not in a cell being edited. A cursor outside every cell (before the
+ * first `|`, say) puts the box in the next cell. Returns false when the cursor is not in a table
+ * row of cells, or the row is the `| --- |` line.
+ */
+export function insertBoxAtCursor(view: EditorView, box: string): boolean {
+  const { state } = view;
+  const { from: selFrom, to: selTo, head } = state.selection.main;
+  // At the very start or end of a table the cursor touches the block next to it as well.
+  const inTable = ([1, -1] as const).some((side) => {
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(head, side);
+    while (node && node.name !== 'Table') node = node.parent;
+    return node !== null;
+  });
+  if (!inTable) return false;
+  const line = state.doc.lineAt(head);
+  if (/^[\s|:-]*$/.test(line.text)) return false;
+  const cells = cellRanges(line.from, line.text);
+  const cell =
+    cells.find((c) => head >= c.from && head <= c.to) ?? cells.find((c) => c.from >= head);
+  if (!cell) return false;
+  const inside = selFrom >= cell.from && selTo <= cell.to;
+  const lead = /^\s*/.exec(state.sliceDoc(cell.from, cell.to))![0].length;
+  const from = inside ? selFrom : cell.from + lead;
+  const to = inside ? selTo : from;
+  const before = state.sliceDoc(cell.from, from);
+  const after = state.sliceDoc(to, cell.to);
+  const insert =
+    (before.trim() && !/\s$/.test(before) ? ' ' : '') + box + (after.trim() ? ' ' : '');
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+    userEvent: 'input.type',
+  });
+  view.focus();
+  return true;
+}
+
 /** Moves a block in a list item in by `indent` characters, to sit under the item's text. */
 export function indentBy(el: HTMLElement, view: EditorView, indent: number): void {
   if (indent > 0) el.style.marginLeft = `calc(24px + ${indent * view.defaultCharacterWidth}px)`;
@@ -218,6 +301,17 @@ export class TableWidget extends WidgetType {
       // Inside the cell being edited, the mouse just moves the caret.
       if (td?.dataset.editing) return;
       event.preventDefault();
+      const box = (event.target as Element).closest<HTMLElement>('.cm-md-checkbox');
+      if (box && td && !event.shiftKey && !view.state.readOnly) {
+        // A box in the cell: swap `☐` and `☑` (the emoji form is replaced by the plain one).
+        const from = view.posAtDOM(table) + Number(box.dataset.at);
+        const insert = view.state.doc.sliceString(from, from + 1) === '☐' ? '☑' : '☐';
+        view.dispatch({
+          changes: { from, to: from + Number(box.dataset.length), insert },
+          userEvent: 'input.type',
+        });
+        return;
+      }
       const editable =
         td &&
         !event.shiftKey &&
