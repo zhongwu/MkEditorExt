@@ -188,7 +188,7 @@
     "@eslint/js": "^10.0.1",
     "@lezer/common": "^1.5.4",
     "@lezer/highlight": "^1.2.5",
-    "@lezer/lr": "^1.4.11",
+    "@lezer/lr": "^1.4.12",
     "@lezer/markdown": "^1.8.1",
     "@types/katex": "^0.16.8",
     "@types/markdown-it-footnote": "^3.0.4",
