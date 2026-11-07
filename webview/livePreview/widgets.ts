@@ -6,6 +6,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
+import { listColumn } from './listLayout';
 import { cellChange, cellRanges, insertRowChange, nextBox } from './tableEdit';
 
 /**
@@ -53,6 +54,7 @@ function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
       // Not an <a href>: a navigating link inside the webview would leave the editor.
       el.className = 'cm-md-link';
       el.title = span.href;
+      el.dataset.href = span.href;
     }
     renderSpans(span.children, el);
     parent.append(el);
@@ -69,7 +71,7 @@ export class HrWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const hr = document.createElement('div');
     hr.className = 'cm-md-hr';
-    indentBy(hr, view, this.indent);
+    indentBy(hr, this.indent);
     hr.setAttribute('role', 'separator');
     return revealOnMouseDown(hr, view);
   }
@@ -177,9 +179,9 @@ export function insertBoxAtCursor(view: EditorView, box: string): boolean {
   return true;
 }
 
-/** Moves a block in a list item in by `indent` characters, to sit under the item's text. */
-export function indentBy(el: HTMLElement, view: EditorView, indent: number): void {
-  if (indent > 0) el.style.marginLeft = `calc(24px + ${indent * view.defaultCharacterWidth}px)`;
+/** Moves a block in a list item, `depth` levels deep, in to sit under the item's text. */
+export function indentBy(el: HTMLElement, depth: number): void {
+  if (depth > 0) el.style.marginLeft = `${listColumn(depth)}px`;
 }
 
 let resume: { pos: number; row: number; col: number } | undefined;
@@ -206,7 +208,7 @@ export class TableWidget extends WidgetType {
     const data = this.data;
     const table = document.createElement('table');
     table.className = 'cm-md-table';
-    indentBy(table, view, this.indent);
+    indentBy(table, this.indent);
     table.setAttribute(
       'aria-label',
       l10n.t('Table, {0} columns, {1} rows', data.header.length, data.rows.length + 1),
@@ -323,6 +325,16 @@ export class TableWidget extends WidgetType {
       const td = (event.target as Element).closest<HTMLTableCellElement>('td, th');
       // Inside the cell being edited, the mouse just moves the caret.
       if (td?.dataset.editing) return;
+      // Ctrl/Cmd+click on a link opens it, as outside tables. The editor ignores events in a
+      // table, so tell it with an event of our own.
+      const link = (event.target as Element).closest<HTMLElement>('[data-href]');
+      if ((event.ctrlKey || event.metaKey) && link) {
+        event.preventDefault();
+        table.dispatchEvent(
+          new CustomEvent('md-open-link', { bubbles: true, detail: link.dataset.href }),
+        );
+        return;
+      }
       event.preventDefault();
       const box = (event.target as Element).closest<HTMLElement>('.cm-md-checkbox');
       if (box && td && !event.shiftKey && !view.state.readOnly) {

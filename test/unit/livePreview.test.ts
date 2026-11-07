@@ -138,8 +138,32 @@ describe('inline live preview', () => {
     });
 
     it('draws bullets for bullet lists, showing the marker only when the cursor is at it', () => {
-      expect(analyze('- one\n- two\n* thr|ee').bullets).toEqual(['-', '-', '*']);
-      expect(analyze('- one\n- |two').bullets).toEqual(['-']);
+      expect(analyze('- one\n- two\n* thr|ee').bullets).toEqual(['- ', '- ', '* ']);
+      expect(analyze('- one\n- |two').bullets).toEqual(['- ']);
+    });
+
+    it('pads the lines of a list item by depth, and hides their indent in the text', () => {
+      const state = stateWithCursor('- one\n  wrapped\n  - two\n\nend|');
+      const items = collectInline(state, 0, state.doc.length);
+      const padded = items.flatMap((i) =>
+        i.type === 'line' && i.className === 'cm-md-li'
+          ? [[state.doc.lineAt(i.pos).number, i.style]]
+          : [],
+      );
+      expect(padded).toEqual([
+        [1, 'padding-left:66px'],
+        [2, 'padding-left:66px'],
+        [3, 'padding-left:126px'],
+      ]);
+      const hidden = items.flatMap((i) =>
+        i.type === 'hide' ? [state.doc.sliceString(i.from, i.to)] : [],
+      );
+      expect(hidden).toEqual(['  ', '  ']);
+    });
+
+    it('leaves a list in a quote alone', () => {
+      const r = analyze('> - one\n> - two\n\nend|');
+      expect(r.lines.filter(([, className]) => className === 'cm-md-li')).toEqual([]);
     });
 
     it('keeps the number of an ordered list item', () => {

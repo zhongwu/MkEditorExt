@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import { MARKER_WIDTH } from './listLayout';
 
 const codeFont = 'var(--vscode-editor-font-family)';
 const muted = 'var(--vscode-descriptionForeground)';
@@ -41,6 +42,22 @@ export const livePreviewTheme = EditorView.theme({
       'linear-gradient(to right, transparent 24px, var(--md-quote-bar, var(--vscode-textBlockQuote-border)) 24px, var(--md-quote-bar, var(--vscode-textBlockQuote-border)) 27px, transparent 27px)',
   },
   '.cm-md-bullet, .cm-md-listmark': { color: muted },
+  // The marker hangs to the left of the item's text, so wrapped lines line up under the text.
+  // The marker sits just before the text, right-aligned in its slot, as in VS Code's preview.
+  '.cm-md-bullet': {
+    display: 'inline-block',
+    marginLeft: '-' + MARKER_WIDTH,
+    paddingRight: '0.55em',
+    boxSizing: 'border-box',
+    textAlign: 'right',
+  },
+  // A number or a shown `-`, followed by its space: about as wide as the bullet's slot.
+  '.cm-md-listmark': {
+    display: 'inline-block',
+    minWidth: '1.3em',
+    marginLeft: '-' + MARKER_WIDTH,
+    textAlign: 'right',
+  },
 
   '.cm-line.cm-md-frontmatter-source': { fontFamily: codeFont, fontSize: '0.92em', color: muted },
 

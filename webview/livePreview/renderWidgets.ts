@@ -21,7 +21,7 @@ export class MathWidget extends WidgetType {
     const el = document.createElement(this.display ? 'div' : 'span');
     el.className = this.display ? 'cm-md-math cm-md-math-display' : 'cm-md-math';
     el.textContent = this.tex;
-    if (this.display) indentBy(el, view, this.indent);
+    if (this.display) indentBy(el, this.indent);
     loadKatex()
       .then((katex) => {
         el.textContent = '';
@@ -84,7 +84,7 @@ export class MermaidWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('div');
     el.className = 'cm-md-mermaid';
-    indentBy(el, view, this.indent);
+    indentBy(el, this.indent);
     el.setAttribute('role', 'img');
     el.setAttribute(
       'aria-label',

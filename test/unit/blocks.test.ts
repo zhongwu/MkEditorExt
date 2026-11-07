@@ -56,7 +56,7 @@ describe('collectBlocks', () => {
   });
 
   it('draws a horizontal rule in a list item, indented, but not in a quote', () => {
-    expect(blocks('- a\n\n  ---\n\n|b')).toEqual([{ type: 'hr', from: 5, to: 10, indent: 2 }]);
+    expect(blocks('- a\n\n  ---\n\n|b')).toEqual([{ type: 'hr', from: 5, to: 10, indent: 1 }]);
     expect(blocks('> a\n>\n> ---\n\n|b')).toEqual([]);
   });
 

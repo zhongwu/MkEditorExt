@@ -244,7 +244,7 @@ describe('tables in list items', () => {
     const doc = '- a\n  - b\n\n    | H1 | H2 |\n    | --- | --- |\n    | x | y |\n\nend\n';
     const [table] = tables(doc);
     const start = doc.indexOf('    | H1');
-    expect(table).toMatchObject({ from: start, indent: 4 });
+    expect(table).toMatchObject({ from: start, indent: 2 });
     const text = (r: { from: number; to: number }) =>
       doc.slice(table.from + r.from, table.from + r.to);
     expect(table.data.ranges.map((row) => row.map(text))).toEqual([
@@ -255,7 +255,7 @@ describe('tables in list items', () => {
 
   it('draws a table right under the item text', () => {
     const doc = '1. Numbered\n   | p | q |\n   |---|---|\n   | 3 | 4 |\n\nend\n';
-    expect(tables(doc)).toMatchObject([{ from: doc.indexOf('   | p'), indent: 3 }]);
+    expect(tables(doc)).toMatchObject([{ from: doc.indexOf('   | p'), indent: 1 }]);
   });
 
   it('leaves a table in a quote as text', () => {

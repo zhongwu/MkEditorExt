@@ -51,7 +51,7 @@ export type BlockItem =
   /** `offset`: where the `[ ]` character to toggle sits, counted from `from`. */
   | { type: 'checkbox'; from: number; to: number; checked: boolean; offset: number }
   /**
-   * A formula or diagram in a list item: `indent` is how far it is indented, and `inline` means
+   * A formula or diagram in a list item: `indent` is how many list items deep it is, and `inline` means
    * it starts on the line of the list marker, so it is drawn in that line instead of as a block.
    */
   | ({ type: 'math'; from: number; to: number; tex: string; display: boolean } & Nesting)
@@ -184,9 +184,15 @@ function blockPlace(doc: Text, node: SyntaxNode): ({ from: number } & Nesting) |
     if (!LIST_NODES.has(parent.name)) return null;
   }
   const line = doc.lineAt(node.from);
-  const indent = node.from - line.from;
-  if (indent === 0) return { from: node.from };
-  if (/^\s*$/.test(doc.sliceString(line.from, node.from))) return { from: line.from, indent };
+  if (node.from === line.from) return { from: node.from };
+  if (/^\s*$/.test(doc.sliceString(line.from, node.from))) {
+    // How many list items it is inside, which decides how far it is moved in.
+    let indent = 0;
+    for (let parent = node.parent; parent; parent = parent.parent) {
+      if (parent.name === 'ListItem') indent++;
+    }
+    return { from: line.from, indent };
+  }
   // "- $$ x $$": the list marker is on the same line.
   return { from: node.from, inline: true };
 }

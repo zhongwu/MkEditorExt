@@ -16,6 +16,7 @@ import { l10n } from '../l10n';
 import { composingField } from './composition';
 import { footnoteDefinitions, type FootnoteDefinition } from './footnotes';
 import { findFrontMatter } from './frontMatter';
+import { listColumn, MARKER_WIDTH } from './listLayout';
 import { isTouched, pristineField, readingFacet, revealSelection } from './reveal';
 
 export type InlineItem =
@@ -26,9 +27,9 @@ export type InlineItem =
   /** The `[!NOTE]` line of a GitHub alert, drawn as a title. */
   | { type: 'alert'; from: number; to: number; kind: string }
   /** A class for a whole line, e.g. a heading. Always applied, so line heights never change. */
-  | { type: 'line'; pos: number; className: string }
+  | { type: 'line'; pos: number; className: string; style?: string }
   /** A bullet list marker drawn as a bullet. */
-  | { type: 'bullet'; from: number; to: number };
+  | { type: 'bullet'; from: number; to: number; depth: number };
 
 const HEADING = /^(ATX|Setext)Heading([1-6])$/;
 const ALERT = /^(\s*>\s*)\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i;
@@ -66,6 +67,41 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
   const selection = revealSelection(state);
   const touched = (node: { from: number; to: number }) => isTouched(selection, node.from, node.to);
   const text = (a: number, b: number) => doc.sliceString(a, b);
+
+  /** Indents the lines of a list item: wrapped lines line up under the text, the marker hangs. */
+  const listItemLines = (item: SyntaxNode) => {
+    let depth = 0;
+    for (let p: SyntaxNode | null = item; p; p = p.parent) {
+      if (p.name === 'Blockquote') return;
+      if (p.name === 'ListItem') depth++;
+    }
+    const apart = new Set([
+      'BulletList',
+      'OrderedList',
+      'Blockquote',
+      'Table',
+      'BlockMath',
+      'HorizontalRule',
+      ...NOT_FOOTNOTE_DEFINITION,
+    ]);
+    const skipped: { from: number; to: number }[] = [];
+    for (let child = item.firstChild; child; child = child.nextSibling) {
+      if (apart.has(child.name)) skipped.push(child);
+    }
+    const first = doc.lineAt(item.from);
+    const last = doc.lineAt(item.to);
+    const style = `padding-left:${listColumn(depth)}px`;
+    for (let n = first.number; n <= last.number; n++) {
+      const line = doc.line(n);
+      if (line.text.trim() === '') continue;
+      if (skipped.some((child) => child.from < line.to && child.to > line.from)) continue;
+      // The indent in the text is not needed: the line is padded instead.
+      const mark = n === first.number ? item.getChild('ListMark') : null;
+      const content = mark ? mark.from : line.from + (/^\s*/.exec(line.text)?.[0].length ?? 0);
+      if (content > line.from) items.push({ type: 'hide', from: line.from, to: content });
+      items.push({ type: 'line', pos: line.from, className: 'cm-md-li', style });
+    }
+  };
 
   const eachLine = (node: { from: number; to: number }, className: string) => {
     for (let n = doc.lineAt(node.from).number; n <= doc.lineAt(node.to).number; n++) {
@@ -221,13 +257,22 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
           }
           return;
         }
+        case 'ListItem':
+          listItemLines(node);
+          return;
         case 'ListMark': {
           const item = node.parent;
           const isBullet = item?.parent?.name === 'BulletList';
           // Task items get a checkbox in Phase 3; keep their marker as text for now.
           const isTask = item?.getChild('Task') !== null;
           if (isBullet && !isTask && !isTouched(selection, node.from, node.to + 1)) {
-            items.push({ type: 'bullet', from: node.from, to: node.to });
+            // The space after the marker belongs to the bullet, which has a fixed width.
+            const end = text(node.to, node.to + 1) === ' ' ? node.to + 1 : node.to;
+            let depth = 0;
+            for (let p: SyntaxNode | null = item; p; p = p.parent) {
+              if (p.name === 'ListItem') depth++;
+            }
+            items.push({ type: 'bullet', from: node.from, to: end, depth });
           } else {
             items.push({ type: 'mark', from: node.from, to: node.to, className: 'cm-md-listmark' });
           }
@@ -291,19 +336,26 @@ class AlertTitleWidget extends WidgetType {
   }
 }
 
+/** As in VS Code's preview and on GitHub: a dot, then a circle, then a square for deeper levels. */
+const BULLETS = ['•', '◦', '▪'];
+
 class BulletWidget extends WidgetType {
-  eq(): boolean {
-    return true;
+  constructor(readonly depth: number) {
+    super();
+  }
+  eq(other: BulletWidget): boolean {
+    return other.depth === this.depth;
   }
   toDOM(): HTMLElement {
     const span = document.createElement('span');
     span.className = 'cm-md-bullet';
-    span.textContent = '•';
+    span.textContent = BULLETS[Math.min(this.depth, BULLETS.length) - 1] ?? '•';
+    span.style.width = MARKER_WIDTH;
     return span;
   }
 }
 
-const bullet = Decoration.replace({ widget: new BulletWidget() });
+const bullets = BULLETS.map((_, i) => Decoration.replace({ widget: new BulletWidget(i + 1) }));
 const hide = Decoration.replace({});
 const markCache = new Map<string, Decoration>();
 const lineCache = new Map<string, Decoration>();
@@ -327,11 +379,13 @@ function markDecoration(className: string, title?: string): Decoration {
   return deco;
 }
 
-function lineDecoration(className: string): Decoration {
-  let deco = lineCache.get(className);
+function lineDecoration(className: string, style?: string): Decoration {
+  const key = `${className}
+${style ?? ''}`;
+  let deco = lineCache.get(key);
   if (!deco) {
-    deco = Decoration.line({ class: className });
-    lineCache.set(className, deco);
+    deco = Decoration.line({ class: className, attributes: style ? { style } : undefined });
+    lineCache.set(key, deco);
   }
   return deco;
 }
@@ -348,7 +402,9 @@ export function toDecorations(items: readonly InlineItem[]): DecorationSet {
         if (item.to > item.from) ranges.push(hide.range(item.from, item.to));
         break;
       case 'bullet':
-        ranges.push(bullet.range(item.from, item.to));
+        ranges.push(
+          bullets[Math.min(Math.max(item.depth, 1), bullets.length) - 1].range(item.from, item.to),
+        );
         break;
       case 'mark':
         if (item.to > item.from)
@@ -360,7 +416,7 @@ export function toDecorations(items: readonly InlineItem[]): DecorationSet {
         );
         break;
       case 'line':
-        ranges.push(lineDecoration(item.className).range(item.pos));
+        ranges.push(lineDecoration(item.className, item.style).range(item.pos));
         break;
     }
   }

@@ -199,5 +199,9 @@ export function createEditor(options: EditorOptions): EditorView {
     }),
   });
   markdownSupport.attach(view);
+  // A link Ctrl/Cmd+clicked in a table cell (the table widget reports it).
+  view.dom.addEventListener('md-open-link', (event) => {
+    options.onOpenLink((event as CustomEvent<string>).detail);
+  });
   return view;
 }

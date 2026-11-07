@@ -106,13 +106,13 @@ describe('math and diagrams in the block preview', () => {
   it('draws a formula and a diagram in a nested list item, indented from the start of the line', () => {
     const doc = '- item\n  - nested\n\n    ```mermaid\n    graph TD\n      A-->B\n    ```\n\n^z';
     expect(blocks(doc)).toEqual([
-      { type: 'mermaid', from: 19, to: 66, indent: 4, source: 'graph TD\n  A-->B' },
+      { type: 'mermaid', from: 19, to: 66, indent: 2, source: 'graph TD\n  A-->B' },
     ]);
     expect(blocks('- item\n\n  $$\n  a+b\n  $$\n\n^z')).toEqual([
-      { type: 'math', from: 8, to: 23, indent: 2, tex: 'a+b', display: true },
+      { type: 'math', from: 8, to: 23, indent: 1, tex: 'a+b', display: true },
     ]);
     expect(blocks('1. item\n\n   ```math\n   a+b\n   ```\n\n^z')).toEqual([
-      { type: 'math', from: 9, to: 33, indent: 3, tex: 'a+b', display: true },
+      { type: 'math', from: 9, to: 33, indent: 1, tex: 'a+b', display: true },
     ]);
   });
 

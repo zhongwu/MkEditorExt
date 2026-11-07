@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11 (2026-11-06)
+
+- Lists are indented as in VS Code's Markdown preview. The bullet or number sits just before the text, wrapped lines line up under the text, and each nested level moves further in. Nested bullets are drawn as `•`, `◦` and `▪`. Tables, formulas and diagrams inside a list item line up with its text.
+- Ctrl/Cmd+click on a link inside a table cell opens it. Before, it started editing the cell.
+
 ## 0.1.10 (2026-11-04)
 
 - A link to another file with a heading, such as `other.md#usage`, opens that file in this editor at the heading. Before, it opened at the top, or in the plain text editor. The same works when the file is already open in a background tab, and a link to the current file scrolls in place.

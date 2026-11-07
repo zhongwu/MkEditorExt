@@ -2,7 +2,7 @@
   "name": "mk-editor-ext",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "publisher": "zhongwu",
   "license": "MIT",
   "repository": {
