@@ -66,6 +66,17 @@ const EXPORT_ICONS = {
   ),
 } as const satisfies Record<ExportFormat, string>;
 
+/** A pencil for Live (you write in it), the Markdown mark for Source, an eye for Reading. */
+const MODE_ICONS: Record<Mode, string> = {
+  live: icon('<path d="M10.8 2.7l2.5 2.5-7.6 7.6-3.2.7.7-3.2z"/><path d="M9.3 4.2l2.5 2.5"/>'),
+  source: icon(
+    '<rect x="1.5" y="3.5" width="13" height="9" rx="1"/><path d="M3.8 10V6l1.9 2.2L7.6 6v4M11.5 6v4M9.9 8.4l1.6 1.6 1.6-1.6"/>',
+  ),
+  reading: icon(
+    '<path d="M1.3 8S3.7 3.6 8 3.6 14.7 8 14.7 8 12.3 12.4 8 12.4 1.3 8 1.3 8z"/><circle cx="8" cy="8" r="2"/>',
+  ),
+};
+
 const MODE_LABELS: Record<Mode, string> = {
   live: l10n.t('Live'),
   source: l10n.t('Source'),
@@ -133,7 +144,10 @@ export function createToolbar(container: HTMLElement, actions: ToolbarActions) {
   for (const mode of MODES) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = MODE_LABELS[mode];
+    // The icons are fixed markup written here, not from the document.
+    button.innerHTML = MODE_ICONS[mode];
+    button.setAttribute('aria-label', MODE_LABELS[mode]);
+    button.title = MODE_LABELS[mode];
     button.addEventListener('click', () => actions.setMode(mode));
     modes.append(button);
     modeButtons.set(mode, button);
