@@ -145,7 +145,8 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
           items.push({
             type: 'line',
             pos: doc.lineAt(node.to).from,
-            className: 'cm-md-setext-mark',
+            // The `===` line takes no room until the cursor comes to the heading.
+            className: touched(node) ? 'cm-md-setext-mark' : 'cm-md-setext-hidden',
           });
         } else if (!touched(node)) {
           for (const mark of node.getChildren('HeaderMark')) {

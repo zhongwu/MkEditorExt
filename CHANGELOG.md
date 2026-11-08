@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A file under Git gets change bars at the left, as in VS Code's own editor: green for added lines, blue for changed lines and a red mark where lines were removed. They compare with the staged text and follow your typing.
+- The Live, Source and Reading buttons in the toolbar are icons.
+- A heading underlined with `===` or `---` no longer shows the underline until the cursor is on the heading. Level 1 and 2 headings have a thin line under them, as in VS Code's Markdown preview.
+
 ## 0.1.11 (2026-11-06)
 
 - Lists are indented as in VS Code's Markdown preview. The bullet or number sits just before the text, wrapped lines line up under the text, and each nested level moves further in. Nested bullets are drawn as `•`, `◦` and `▪`. Tables, formulas and diagrams inside a list item line up with its text.

@@ -60,10 +60,14 @@ describe('inline live preview', () => {
       expect(analyze('### Title ###\n\nx|').hidden).toEqual(['### ', ' ###']);
     });
 
-    it('styles setext headings without hiding the underline', () => {
-      const r = analyze('Title\n=====\n\nx|');
-      expect(r.hidden).toEqual([]);
-      expect(r.lines).toEqual([
+    it('collapses the setext underline, and shows it at the cursor', () => {
+      const away = analyze('Title\n=====\n\nx|');
+      expect(away.hidden).toEqual([]);
+      expect(away.lines).toEqual([
+        [1, 'cm-md-heading cm-md-h1'],
+        [2, 'cm-md-setext-hidden'],
+      ]);
+      expect(analyze('Ti|tle\n=====\n\nx').lines).toEqual([
         [1, 'cm-md-heading cm-md-h1'],
         [2, 'cm-md-setext-mark'],
       ]);

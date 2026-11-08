@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DocumentSync } from './DocumentSync';
 import { findAnchor, findHeadings } from './headings';
+import { GitBaseWatcher } from './gitBase';
 import { classifyLink } from './links';
 import { pickImage, saveImage } from './saveImage';
 import {
@@ -199,7 +200,9 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     this.pendingReveals.delete(document.uri.toString());
     this.editors.add(editor);
 
+    const gitBase = new GitBaseWatcher(document.uri, (text) => post({ type: 'gitBase', text }));
     const subscriptions = [
+      gitBase,
       webview.onDidReceiveMessage((message: unknown) => {
         if (!isWebviewMessage(message)) {
           return;
@@ -243,6 +246,9 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           post({ type: 'settings', settings: readSettings(webview, documentFolder) });
         }
         void sync.handleMessage(message);
+        if (message.type === 'ready') {
+          void gitBase.refresh(true);
+        }
         if (message.type === 'ready' && editor.pendingLine !== undefined) {
           // `init` has just been posted, so this arrives after it.
           post({ type: 'revealLine', line: editor.pendingLine });

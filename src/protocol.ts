@@ -77,6 +77,8 @@ export type HostMessage =
   | { type: 'imageSaved'; id: number; path: string; alt?: string }
   /** Put the cursor at the start of this line and scroll it into view. */
   | { type: 'revealLine'; line: number }
+  /** The text of the file as Git has it, for the change bars; null if it is not in Git. */
+  | { type: 'gitBase'; text: string | null }
   /** Draw these Mermaid sources and answer with `diagrams` (for Export to HTML). */
   | { type: 'drawDiagrams'; id: number; sources: string[] };
 

@@ -10,12 +10,22 @@ const muted = 'var(--vscode-descriptionForeground)';
  */
 export const livePreviewTheme = EditorView.theme({
   '.cm-md-heading': { fontWeight: '600' },
-  '.cm-md-h1': { fontSize: '1.6em' },
-  '.cm-md-h2': { fontSize: '1.4em' },
+  // As in VS Code's Markdown preview, a thin line under level 1 and 2 headings.
+  '.cm-md-h1': {
+    fontSize: '1.6em',
+    borderBottom: '1px solid rgba(128, 128, 128, 0.35)',
+    paddingBottom: '0.2em',
+  },
+  '.cm-md-h2': {
+    fontSize: '1.4em',
+    borderBottom: '1px solid rgba(128, 128, 128, 0.35)',
+    paddingBottom: '0.2em',
+  },
   '.cm-md-h3': { fontSize: '1.2em' },
   '.cm-md-h4': { fontSize: '1.1em' },
   '.cm-md-h6': { color: muted },
   '.cm-md-setext-mark': { color: muted },
+  '.cm-md-setext-hidden': { fontSize: '0', lineHeight: '0', height: '0', overflow: 'hidden' },
 
   '.cm-md-strong': { fontWeight: 'bold' },
   '.cm-md-em': { fontStyle: 'italic' },

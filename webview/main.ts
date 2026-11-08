@@ -2,6 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import type { EditorSettings, HostMessage, Mode } from '../src/protocol';
 import { commands } from './commands';
 import { imageAlt, imageMarkdown } from '../src/images';
+import { setGitBase } from './gitGutter';
 import { createEditor, remoteChange, revealLine, setRenderHtml } from './editor';
 import { readBase64 } from './imagePaste';
 import { configureAssets } from './livePreview/lazy';
@@ -107,6 +108,9 @@ function setText(view: EditorView, text: string): void {
   }
 }
 
+/** The file's text in Git, if the host has sent it. */
+let gitBase: string | null | undefined;
+
 function applySettings(settings: EditorSettings): void {
   baseUri = settings.baseUri;
   if (view && renderHtml !== settings.renderHtml) {
@@ -142,6 +146,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     );
     return;
   }
+  if (message.type === 'gitBase') {
+    gitBase = message.text;
+    if (view) setGitBase(view, gitBase);
+    return;
+  }
   if (message.type === 'revealLine') {
     if (view) {
       revealLine(view, message.line);
@@ -165,6 +174,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       onImages: sendImages,
     });
     sync.reset(message.version);
+    if (gitBase !== undefined) setGitBase(view, gitBase);
     // Back from being hidden: the cursor and scroll position as they were.
     const saved = readSavedView(vscode.getState(), view.state.doc.length);
     if (saved) restoreView(view, saved);

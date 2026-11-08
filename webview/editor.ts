@@ -19,6 +19,7 @@ import {
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { formattingKeymap } from './commands';
+import { gitGutter } from './gitGutter';
 import { imageHandlers } from './imagePaste';
 import { renderHtmlFacet } from './livePreview/blocks';
 import { footnoteExtension } from './livePreview/footnotes';
@@ -137,6 +138,7 @@ export function createEditor(options: EditorOptions): EditorView {
         drawSelection(),
         dropCursor(),
         pristineField,
+        gitGutter(),
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
         bracketMatching(),
