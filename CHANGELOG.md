@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.12 (2026-11-07)
 
 - A file under Git gets change bars at the left, as in VS Code's own editor: green for added lines, blue for changed lines and a red mark where lines were removed. They compare with the staged text and follow your typing.
 - The Live, Source and Reading buttons in the toolbar are icons.
