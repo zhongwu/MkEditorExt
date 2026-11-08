@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
 A live-preview Markdown editor for VS Code. Formatting is shown rendered as you type, and it **never rewrites parts of the file you didn't touch**.
 
-![The editor showing a heading, a tip, a task list, a table, math and an image, with the cursor in a line where the italic symbols are revealed](images/live-editing.png)
+![The editor showing a heading, a tip, a task list, a table, math and an image, with the cursor in a line where the italic symbols are revealed, and change bars at the left of the lines that differ from Git](images/live-editing.png)
 
 ## Change one word, and one word changes
 
@@ -31,9 +31,11 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 - **GitHub-style Markdown:** tables, task lists, strikethrough, autolinks, alerts (`> [!NOTE]`), footnotes, front matter, math with KaTeX (`$x^2$` and `$$…$$`) and Mermaid diagrams.
 - **Tables you can edit in place:** click a cell and type. Tab moves to the next cell. Only that cell's text changes in the file. A `☐`, `☑` or `☒` anywhere in a cell is drawn as a checkbox, and each click goes to the next of the three (open, done, crossed out, then open again). While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell. They are ordinary characters, so every app shows them.
 - **Task checkboxes:** a click toggles `[ ]` and `[x]`, a one-character edit.
+- **Change bars for files under Git:** as in VS Code's own editor, a green bar marks added lines, a blue bar changed lines and a red mark where lines were removed, compared with the staged version of the file. They follow your typing and use VS Code's built-in Git extension.
+- **Drawn like VS Code's Markdown preview:** lists are indented the same way (with `•`, `◦` and `▪` for nested bullets), and level 1 and 2 headings have a thin line under them.
 - **Formatting toolbar and shortcuts**, list continuation on Enter, and pasted links.
 - **Images:** paste or drop an image file (hold Shift while dropping) and it is saved to an `assets/` folder next to the document. Or use the Image button.
-- **Go to Heading** and working `#anchor` links.
+- **Go to Heading** and working `#anchor` links. Ctrl/Cmd+click a link to open it, also inside a table cell, and a link such as `other.md#usage` opens that file in this editor at the heading.
 - **Export to HTML or PDF** from the toolbar or the Command Palette. Images and math are embedded, and Mermaid diagrams are drawn.
 - Works with VS Code's own save, undo and redo, the unsaved-changes marker and Git, and in remote windows (checked in WSL).
 - Follows your VS Code theme (light, dark and high contrast) and fonts. Raw HTML is shown as source unless you turn on rendering, and then it is sanitized.
@@ -52,7 +54,7 @@ With the cursor on another line, the formatting is drawn and the symbols are hid
 - **Tables:** click a cell and type. `Tab` moves to the next cell. Move the cursor into the table with the arrow keys to see its Markdown source.
 - **Lists:** `Enter` continues a list, and `Enter` on an empty item ends it.
 - **Pictures:** paste or drop an image, or use the Image button.
-- **Change mode:** **Live**, **Source** and **Reading** are in the top right of the editor.
+- **Change mode:** **Live** (a pencil), **Source** (the Markdown mark) and **Reading** (an eye) are icon buttons at the top right of the editor. Hover over one to see its name.
 
 Editing a table: click a cell, type, and press `Tab` for the next cell.
 
@@ -85,7 +87,7 @@ Click a formula or diagram to see and edit its source. A formula or diagram with
 
 ## Using it
 
-Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Minimal Diff Editor**. It never replaces VS Code's default editor unless you make it the default. You can also run **Markdown Minimal Diff Editor: Open in Markdown Minimal Diff Editor** from the Command Palette.
+Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then **Markdown Minimal Diff Editor**. It never replaces VS Code's default editor unless you make it the default. You can also use the button in the title bar of a Markdown file, or run **Markdown Minimal Diff Editor: Open in Markdown Minimal Diff Editor** from the Command Palette.
 
 ### Shortcuts
 
@@ -117,6 +119,7 @@ PDF export uses Google Chrome or Microsoft Edge installed on the same machine as
 ## Limits
 
 - VS Code's Outline view and breadcrumbs stay empty in this editor, because VS Code only fills them for text editors. Use **Go to Heading** (`Ctrl/Cmd+Shift+O`) instead, or reopen the file in the Text Editor to see the Outline.
+- Change bars need the file to be on disk in a Git repository, and the built-in Git extension to be enabled. Clicking a bar does not open a diff.
 - Math inside a table cell is shown as `$x$` text, not drawn.
 - Math, diagrams and tables inside a quote (`> `) are shown as source.
 - Mermaid diagrams are not redrawn when you switch VS Code's theme until the diagram is edited or the file reopened.
