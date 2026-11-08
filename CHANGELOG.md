@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.13 (2026-11-08)
+
+- The README has new screenshots and animated examples that show the current look: the icon buttons, the line under headings, list indents and the Git change bars. It also describes the change bars and the title-bar button.
+
 ## 0.1.12 (2026-11-07)
 
 - A file under Git gets change bars at the left, as in VS Code's own editor: green for added lines, blue for changed lines and a red mark where lines were removed. They compare with the staged text and follow your typing.
