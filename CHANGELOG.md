@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.14 (2026-11-16)
+
+- Find and Replace (`Ctrl/Cmd+F`, `Ctrl+H` on Windows/Linux, `Cmd+Alt+F` on macOS) with a VS Code-style floating panel, match counts, and automatic source reveal when jumping to matches inside widgets.
+- Fenced code blocks show their language label and a Copy button on the opening line when the cursor is outside the block.
+- Table editing improvements: row and column insert/delete actions without re-aligning the table, `ArrowUp`/`ArrowDown` navigation between rows, and inline math (`$x$`) rendered inside cells.
+- `#heading` anchor autocompletion when typing `](#`.
+- Fenced code blocks are syntax-highlighted in HTML and PDF exports (when exported from an open editor).
+- Status bar word count when the editor is active.
+- Mermaid diagrams redraw automatically when switching VS Code themes.
+- IME composition edits are buffered until composition ends so undo removes the committed word in one step.
+- Git change bars use Myers diff so far-apart edits in large files stay separate.
+
 ## 0.1.13 (2026-11-08)
 
 - The README has new screenshots and animated examples that show the current look: the icon buttons, the line under headings, list indents and the Git change bars. It also describes the change bars and the title-bar button.
