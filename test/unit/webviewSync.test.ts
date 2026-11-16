@@ -112,9 +112,9 @@ describe('WebviewSync', () => {
     const sync = new WebviewSync((m) => sent.push(m));
     sync.reset(version);
     let state = EditorState.create({ doc: 'abc' });
-    const type = (insert: string) => {
+    const type = (insert: string, composing = false) => {
       const tr = state.update({ changes: { from: state.doc.length, insert } });
-      sync.localChange(tr.changes, state.doc);
+      sync.localChange(tr.changes, state.doc, composing);
       state = tr.state;
     };
     const receive = (message: HostMessage) =>
@@ -184,6 +184,44 @@ describe('WebviewSync', () => {
     const { receive, text } = setup(1);
     receive({ type: 'replace', text: 'a\r\nb', version: 2 });
     expect(text()).toBe('a\nb');
+  });
+
+  it('holds IME composition edits until endComposition and sends them together', () => {
+    const { sync, sent, type } = setup(1);
+    type('n', true);
+    type('i', true);
+    expect(sent).toEqual([]);
+    sync.endComposition();
+    expect(sent).toHaveLength(1);
+    const edit = sent[0] as Extract<WebviewMessage, { type: 'edit' }>;
+    expect(edit.baseVersion).toBe(1);
+    expect(applyTextChanges('abc', edit.changes)).toBe('abcni');
+  });
+
+  it('does not flush held composition edits on ack until composition ends', () => {
+    const { sync, sent, type, receive } = setup(1);
+    type('!', false);
+    expect(sent).toHaveLength(1);
+    type('n', true);
+    type('i', true);
+    expect(receive({ type: 'ack', id: 1, version: 2 })).toBe(false);
+    expect(sent).toHaveLength(1);
+    sync.endComposition();
+    expect(sent).toHaveLength(2);
+    const edit = sent[1] as Extract<WebviewMessage, { type: 'edit' }>;
+    expect(edit.baseVersion).toBe(2);
+    expect(applyTextChanges('abc!', edit.changes)).toBe('abc!ni');
+  });
+
+  it('drops held composition edits if an outside replace arrives mid-composition', () => {
+    const { sync, sent, type, receive, text } = setup(1);
+    type('n', true);
+    type('i', true);
+    expect(sent).toEqual([]);
+    receive({ type: 'replace', text: 'outside', version: 2 });
+    expect(text()).toBe('outside');
+    sync.endComposition();
+    expect(sent).toEqual([]);
   });
 });
 

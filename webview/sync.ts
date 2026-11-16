@@ -61,6 +61,8 @@ export class WebviewSync {
   private nextId = 1;
   private inFlight: number | undefined;
   private pending: { changes: ChangeSet; startDoc: Text } | undefined;
+  /** True while an IME composition is under way; edits are held until it ends. */
+  private composing = false;
   /** An outside change replaced the text while our edit was in flight. */
   private replacedDuringFlight = false;
 
@@ -91,24 +93,33 @@ export class WebviewSync {
     this.version = version;
     this.inFlight = undefined;
     this.pending = undefined;
+    this.composing = false;
     this.replacedDuringFlight = false;
   }
 
   /** Call for every local (non-remote) document change, with the doc it was applied to. */
-  localChange(changes: ChangeSet, startDoc: Text): void {
-    if (changes.empty) {
+  localChange(changes: ChangeSet, startDoc: Text, composing = false): void {
+    this.composing = composing;
+    if (!changes.empty) {
+      if (this.pending) {
+        this.pending = {
+          changes: this.pending.changes.compose(changes),
+          startDoc: this.pending.startDoc,
+        };
+      } else {
+        this.pending = { changes, startDoc };
+      }
+    }
+    this.flushPending();
+  }
+
+  /** Flushes any changes held back while an IME composition was under way. */
+  endComposition(): void {
+    if (!this.composing) {
       return;
     }
-    if (this.inFlight === undefined) {
-      this.send(changes, startDoc);
-    } else if (this.pending) {
-      this.pending = {
-        changes: this.pending.changes.compose(changes),
-        startDoc: this.pending.startDoc,
-      };
-    } else {
-      this.pending = { changes, startDoc };
-    }
+    this.composing = false;
+    this.flushPending();
   }
 
   /**
@@ -125,6 +136,7 @@ export class WebviewSync {
       // Our edit landed after we had already overwritten it with an outside change.
       this.replacedDuringFlight = false;
       this.pending = undefined;
+      this.composing = false;
       return false;
     }
     this.flushPending();
@@ -136,6 +148,7 @@ export class WebviewSync {
     this.version = version;
     // The replaced text already contains (or discards) everything typed so far.
     this.pending = undefined;
+    this.composing = false;
     if (id !== undefined && id === this.inFlight) {
       this.inFlight = undefined;
       this.replacedDuringFlight = false;
@@ -145,9 +158,12 @@ export class WebviewSync {
   }
 
   private flushPending(): void {
+    if (this.composing || this.inFlight !== undefined) {
+      return;
+    }
     const pending = this.pending;
     this.pending = undefined;
-    if (pending) {
+    if (pending && !pending.changes.empty) {
       this.send(pending.changes, pending.startDoc);
     }
   }

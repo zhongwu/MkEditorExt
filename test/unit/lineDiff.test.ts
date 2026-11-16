@@ -46,4 +46,15 @@ describe('diffLines', () => {
     const next = Array.from({ length: 3000 }, (_, i) => `new ${i}`);
     expect(diffLines(old, next)).toEqual([{ kind: 'modified', from: 0, to: 3000 }]);
   });
+
+  it('keeps far-apart edits separate in large files', () => {
+    const old = Array.from({ length: 2500 }, (_, i) => `line ${i}`);
+    const next = [...old];
+    next[0] = 'changed first';
+    next[2499] = 'changed last';
+    expect(diffLines(old, next)).toEqual([
+      { kind: 'modified', from: 0, to: 1 },
+      { kind: 'modified', from: 2499, to: 2500 },
+    ]);
+  });
 });

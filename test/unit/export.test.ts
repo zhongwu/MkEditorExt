@@ -1,7 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { collectDiagramSources, collectImageSources, renderHtml } from '../../src/export';
+import {
+  collectCodeBlocks,
+  collectDiagramSources,
+  collectImageSources,
+  renderHtml,
+} from '../../src/export';
 
 const page = (markdown: string, options = {}) => renderHtml(markdown, options);
 
@@ -131,6 +136,15 @@ describe('renderHtml', () => {
       );
       expect(html).toContain('<code class="language-js">');
       expect(page(md)).toContain('language-mermaid');
+    });
+
+    it('collects fenced code blocks and renders highlighted HTML when provided', () => {
+      expect(collectCodeBlocks(md + '\n```math\nx\n```\n\n```\nplain\n```\n')).toEqual([
+        { lang: 'js', code: 'let x;\n' },
+      ]);
+      const highlighted = '<span class="tok-keyword">let</span> x;\n';
+      const html = page(md, { highlightedCode: new Map([['js\nlet x;\n', highlighted]]) });
+      expect(html).toContain(`<pre><code class="language-js">${highlighted}</code></pre>`);
     });
   });
 

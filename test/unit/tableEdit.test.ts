@@ -8,6 +8,10 @@ import { insertBoxAtCursor } from '../../webview/livePreview/widgets';
 import {
   cellChange,
   cellRanges,
+  deleteColumnAt,
+  deleteRowAt,
+  insertColumnAt,
+  insertRowAt,
   insertRowChange,
   nextBox,
 } from '../../webview/livePreview/tableEdit';
@@ -93,6 +97,113 @@ describe('insertRowChange', () => {
       to: 45,
       insert: '\n    |  |  |  |',
     });
+  });
+});
+
+describe('table row and column actions', () => {
+  const table = ['| Name   | Age |', '| :---   | --: |', '| Alice  | 30  |', '| Bob    | 25  |'].join(
+    '\n',
+  );
+
+  function parseTableLines(doc: string) {
+    const raw = doc.split('\n');
+    let offset = 0;
+    const lines = raw.map((text) => {
+      const entry = { from: offset, to: offset + text.length, text };
+      offset += text.length + 1;
+      return entry;
+    });
+    const header = lines[0];
+    const delim = lines[1];
+    const rowLines = [header, ...lines.slice(2)];
+    const allLines = [
+      { from: header.from, text: header.text },
+      { from: delim.from, text: delim.text, isDelimiter: true },
+      ...lines.slice(2).map((l) => ({ from: l.from, text: l.text })),
+    ];
+    return { header, delim, rowLines, allLines };
+  }
+
+  function applySpecs(
+    doc: string,
+    specs: readonly { from: number; to: number; insert?: string }[],
+  ): string {
+    const sorted = [...specs].sort((a, b) => b.from - a.from);
+    let out = doc;
+    for (const { from, to, insert = '' } of sorted) {
+      out = out.slice(0, from) + insert + out.slice(to);
+    }
+    return out;
+  }
+
+  it('inserts rows above or below without reformatting existing rows', () => {
+    const { header, delim, rowLines } = parseTableLines(table);
+    expect(
+      insertRowAt({ headerEnd: header.to, delimiterEnd: delim.to, rowLines }, 0, 'above', 2),
+    ).toBeNull();
+
+    const belowHeader = insertRowAt(
+      { headerEnd: header.to, delimiterEnd: delim.to, rowLines },
+      0,
+      'below',
+      2,
+    )!;
+    expect(applySpecs(table, [belowHeader])).toBe(
+      ['| Name   | Age |', '| :---   | --: |', '|  |  |', '| Alice  | 30  |', '| Bob    | 25  |'].join(
+        '\n',
+      ),
+    );
+
+    const aboveRow2 = insertRowAt(
+      { headerEnd: header.to, delimiterEnd: delim.to, rowLines },
+      2,
+      'above',
+      2,
+    )!;
+    expect(applySpecs(table, [aboveRow2])).toBe(
+      ['| Name   | Age |', '| :---   | --: |', '| Alice  | 30  |', '|  |  |', '| Bob    | 25  |'].join(
+        '\n',
+      ),
+    );
+  });
+
+  it('deletes a body row and refuses to delete the header', () => {
+    const { rowLines } = parseTableLines(table);
+    expect(deleteRowAt(rowLines, 0)).toBeNull();
+    const del = deleteRowAt(rowLines, 1)!;
+    expect(applySpecs(table, [del])).toBe(
+      ['| Name   | Age |', '| :---   | --: |', '| Bob    | 25  |'].join('\n'),
+    );
+  });
+
+  it('inserts columns left or right without re-aligning existing cells', () => {
+    const { allLines } = parseTableLines(table);
+    const left = insertColumnAt(allLines, 0, 'left')!;
+    expect(applySpecs(table, left)).toBe(
+      ['|  | Name   | Age |', '| --- | :---   | --: |', '|  | Alice  | 30  |', '|  | Bob    | 25  |'].join(
+        '\n',
+      ),
+    );
+
+    const right = insertColumnAt(allLines, 1, 'right')!;
+    expect(applySpecs(table, right)).toBe(
+      ['| Name   | Age |  |', '| :---   | --: | --- |', '| Alice  | 30  |  |', '| Bob    | 25  |  |'].join(
+        '\n',
+      ),
+    );
+  });
+
+  it('deletes columns without re-aligning remaining cells', () => {
+    const { allLines } = parseTableLines(table);
+    const delFirst = deleteColumnAt(allLines, 0)!;
+    expect(applySpecs(table, delFirst)).toBe(
+      ['| Age |', '| --: |', '| 30  |', '| 25  |'].join('\n'),
+    );
+
+    const delLast = deleteColumnAt(allLines, 1)!;
+    expect(applySpecs(table, delLast)).toBe(
+      ['| Name   |', '| :---   |', '| Alice  |', '| Bob    |'].join('\n'),
+    );
   });
 });
 

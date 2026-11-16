@@ -29,16 +29,18 @@ Everything else in the file stays as it was, including your line endings (`\r\n`
 - **Source mode:** plain Markdown with syntax highlighting. It is also the best mode for screen readers.
 - **Reading mode:** fully rendered and read-only.
 - **GitHub-style Markdown:** tables, task lists, strikethrough, autolinks, alerts (`> [!NOTE]`), footnotes, front matter, math with KaTeX (`$x^2$` and `$$…$$`) and Mermaid diagrams.
-- **Tables you can edit in place:** click a cell and type. Tab moves to the next cell. Only that cell's text changes in the file. A `☐`, `☑` or `☒` anywhere in a cell is drawn as a checkbox, and each click goes to the next of the three (open, done, crossed out, then open again). While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell. They are ordinary characters, so every app shows them.
+- **Tables you can edit in place:** click a cell and type. `Tab` moves to the next cell and `ArrowUp`/`ArrowDown` move between rows, with buttons to insert or delete rows and columns without re-aligning the table. Only the touched cells or pipes change in the file. A `☐`, `☑` or `☒` anywhere in a cell is drawn as a checkbox, and each click goes to the next of the three (open, done, crossed out, then open again). While the cursor is in a cell (you are editing it, or the table shows its source), the toolbar's `☐` and `☑` buttons type them, and a `[ ]` or `[x]` you type becomes `☐` or `☑` when you leave the cell. They are ordinary characters, so every app shows them. Inline math (`$x$`) inside cells is drawn too.
 - **Task checkboxes:** a click toggles `[ ]` and `[x]`, a one-character edit.
+- **Fenced code blocks:** syntax-highlighted in place; when the cursor is outside a block, its header shows the language name and a **Copy** button.
 - **Change bars for files under Git:** as in VS Code's own editor, a green bar marks added lines, a blue bar changed lines and a red mark where lines were removed, compared with the staged version of the file. They follow your typing and use VS Code's built-in Git extension.
 - **Drawn like VS Code's Markdown preview:** lists are indented the same way (with `•`, `◦` and `▪` for nested bullets), and level 1 and 2 headings have a thin line under them.
-- **Formatting toolbar and shortcuts**, list continuation on Enter, and pasted links.
+- **Formatting toolbar and shortcuts**, list continuation on Enter, pasted links, and **Find and Replace** (`Ctrl/Cmd+F`, `Ctrl+H`) that searches the whole document and reveals hidden Markdown source when jumping to a match.
 - **Images:** paste or drop an image file (hold Shift while dropping) and it is saved to an `assets/` folder next to the document. Or use the Image button.
-- **Go to Heading** and working `#anchor` links. Ctrl/Cmd+click a link to open it, also inside a table cell, and a link such as `other.md#usage` opens that file in this editor at the heading.
-- **Export to HTML or PDF** from the toolbar or the Command Palette. Images and math are embedded, and Mermaid diagrams are drawn.
+- **Go to Heading**, `#anchor` autocompletion after `](#`, and working `#anchor` links. Ctrl/Cmd+click a link to open it, also inside a table cell, and a link such as `other.md#usage` opens that file in this editor at the heading.
+- **Export to HTML or PDF** from the toolbar or the Command Palette. Images, syntax-highlighted code and math are embedded, and Mermaid diagrams are drawn.
+- **Word count** in the status bar while the editor is active.
 - Works with VS Code's own save, undo and redo, the unsaved-changes marker and Git, and in remote windows (checked in WSL).
-- Follows your VS Code theme (light, dark and high contrast) and fonts. Raw HTML is shown as source unless you turn on rendering, and then it is sanitized.
+- Follows your VS Code theme (light, dark and high contrast), fonts and theme switches (Mermaid diagrams redraw automatically). Raw HTML is shown as source unless you turn on rendering, and then it is sanitized.
 - The interface is also in Simplified and Traditional Chinese, following VS Code's display language.
 
 ## How editing works
@@ -101,6 +103,7 @@ Open a `.md` file, right-click its tab, choose **Reopen Editor With…**, then *
 | `Ctrl/Cmd+Enter` | Tick or untick the task on the line |
 | `Ctrl/Cmd+Alt+M` | Switch to Source mode and back |
 | `Ctrl/Cmd+Shift+O` | Go to Heading |
+| `Ctrl/Cmd+F`, `Ctrl+H` | Find and replace |
 
 ### Settings
 
@@ -120,11 +123,7 @@ PDF export uses Google Chrome or Microsoft Edge installed on the same machine as
 
 - VS Code's Outline view and breadcrumbs stay empty in this editor, because VS Code only fills them for text editors. Use **Go to Heading** (`Ctrl/Cmd+Shift+O`) instead, or reopen the file in the Text Editor to see the Outline.
 - Change bars need the file to be on disk in a Git repository, and the built-in Git extension to be enabled. Clicking a bar does not open a diff.
-- Math inside a table cell is shown as `$x$` text, not drawn.
 - Math, diagrams and tables inside a quote (`> `) are shown as source.
-- Mermaid diagrams are not redrawn when you switch VS Code's theme until the diagram is edited or the file reopened.
-- The label of a code fence's language is hidden when the cursor is outside the block.
-- IME input (Chinese, Japanese, Korean): each composition step is sent to the file as an edit, so undo has several steps.
 - Very large files (over 10 MB) take a few seconds to be formatted at the far end after you jump there.
 - Images next to a document on a virtual file system (such as a GitHub repository opened in the editor) cannot be shown.
 

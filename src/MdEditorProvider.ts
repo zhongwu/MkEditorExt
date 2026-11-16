@@ -7,12 +7,14 @@ import { pickImage, saveImage } from './saveImage';
 import {
   MODES,
   isWebviewMessage,
+  type CodeBlockInput,
   type EditorSettings,
   type HostMessage,
   type Mode,
   type TextChange,
 } from './protocol';
 import { getNonce } from './util/nonce';
+import { countWords } from './wordCount';
 
 /** The longest custom stylesheet that is passed on to the editor. */
 const MAX_CUSTOM_CSS = 50_000;
@@ -34,20 +36,21 @@ interface OpenEditor {
   pendingLine?: number;
 }
 
-interface DiagramRequest {
+interface PendingRequest<T> {
   editor: OpenEditor;
   timer: ReturnType<typeof setTimeout>;
-  resolve(svgs: (string | null)[] | undefined): void;
+  resolve(value: T | undefined): void;
 }
 
 export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'mdEditor.editor';
 
   private readonly editors = new Set<OpenEditor>();
-  private readonly diagramRequests = new Map<number, DiagramRequest>();
-  private nextDiagramRequest = 1;
+  private readonly webviewRequests = new Map<number, PendingRequest<unknown>>();
+  private nextRequestId = 1;
   /** Lines to scroll to in editors that are about to open, by document. */
   private readonly pendingReveals = new Map<string, number>();
+  private statusBarItem: vscode.StatusBarItem | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -55,9 +58,15 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
   ) {}
 
   register(): vscode.Disposable {
-    return vscode.window.registerCustomEditorProvider(MdEditorProvider.viewType, this, {
-      supportsMultipleEditorsPerDocument: true,
-    });
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    this.statusBarItem = statusBarItem;
+    this.updateStatusBar();
+    return vscode.Disposable.from(
+      vscode.window.registerCustomEditorProvider(MdEditorProvider.viewType, this, {
+        supportsMultipleEditorsPerDocument: true,
+      }),
+      statusBarItem,
+    );
   }
 
   /** The mode of the editor that has focus, or undefined if none does. */
@@ -121,10 +130,32 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
    * Has a visible editor on `document` draw Mermaid diagrams, for the export. Resolves to
    * undefined if no editor can, or none answers in time; null entries are diagrams that failed.
    */
-  async drawDiagrams(
+  drawDiagrams(
     document: vscode.TextDocument,
     sources: string[],
   ): Promise<(string | null)[] | undefined> {
+    return this.requestEditor(document, (editor, id) =>
+      editor.post({ type: 'drawDiagrams', id, sources }),
+    );
+  }
+
+  /**
+   * Has a visible editor on `document` syntax-highlight fenced code blocks, for the export.
+   * Resolves to undefined if no editor can, or none answers in time.
+   */
+  highlightCode(
+    document: vscode.TextDocument,
+    blocks: CodeBlockInput[],
+  ): Promise<(string | null)[] | undefined> {
+    return this.requestEditor(document, (editor, id) =>
+      editor.post({ type: 'highlightCode', id, blocks }),
+    );
+  }
+
+  private async requestEditor<T>(
+    document: vscode.TextDocument,
+    send: (editor: OpenEditor, id: number) => void,
+  ): Promise<T | undefined> {
     const open = [...this.editors].filter(
       (editor) => editor.document === document && editor.panel.visible,
     );
@@ -132,22 +163,43 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     if (!editor) {
       return undefined;
     }
-    const id = this.nextDiagramRequest++;
+    const id = this.nextRequestId++;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        this.diagramRequests.delete(id);
+        this.webviewRequests.delete(id);
         resolve(undefined);
       }, DIAGRAM_TIMEOUT_MS);
-      this.diagramRequests.set(id, {
+      this.webviewRequests.set(id, {
         editor,
         timer,
-        resolve: (svgs) => {
+        resolve: (value) => {
           clearTimeout(timer);
-          resolve(svgs);
+          resolve(value as T | undefined);
         },
       });
-      editor.post({ type: 'drawDiagrams', id, sources });
+      send(editor, id);
     });
+  }
+
+  private resolveRequest(id: number, value: unknown): void {
+    const req = this.webviewRequests.get(id);
+    if (req) {
+      this.webviewRequests.delete(id);
+      req.resolve(value);
+    }
+  }
+
+  private updateStatusBar(): void {
+    if (!this.statusBarItem) return;
+    const editor = this.activeEditor();
+    if (!editor) {
+      this.statusBarItem.hide();
+      return;
+    }
+    const words = countWords(editor.document.getText());
+    this.statusBarItem.text =
+      words === 1 ? vscode.l10n.t('1 word') : vscode.l10n.t('{0} words', words);
+    this.statusBarItem.show();
   }
 
   private activeEditor(): OpenEditor | undefined {
@@ -199,10 +251,12 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     };
     this.pendingReveals.delete(document.uri.toString());
     this.editors.add(editor);
+    this.updateStatusBar();
 
     const gitBase = new GitBaseWatcher(document.uri, (text) => post({ type: 'gitBase', text }));
     const subscriptions = [
       gitBase,
+      panel.onDidChangeViewState(() => this.updateStatusBar()),
       webview.onDidReceiveMessage((message: unknown) => {
         if (!isWebviewMessage(message)) {
           return;
@@ -217,11 +271,11 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         if (message.type === 'diagrams') {
-          const req = this.diagramRequests.get(message.id);
-          if (req) {
-            this.diagramRequests.delete(message.id);
-            req.resolve(message.svgs);
-          }
+          this.resolveRequest(message.id, message.svgs);
+          return;
+        }
+        if (message.type === 'highlightedCode') {
+          this.resolveRequest(message.id, message.html);
           return;
         }
         if (message.type === 'export') {
@@ -259,6 +313,7 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
         // Events with no content changes only report a dirty-state change.
         if (event.document === document && event.contentChanges.length > 0) {
           sync.onDocumentChanged();
+          if (editor.panel.active) this.updateStatusBar();
         }
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -269,11 +324,12 @@ export class MdEditorProvider implements vscode.CustomTextEditorProvider {
     ];
     panel.onDidDispose(() => {
       this.editors.delete(editor);
+      this.updateStatusBar();
       subscriptions.forEach((s) => s.dispose());
-      for (const [id, req] of this.diagramRequests) {
+      for (const [id, req] of this.webviewRequests) {
         if (req.editor === editor) {
           clearTimeout(req.timer);
-          this.diagramRequests.delete(id);
+          this.webviewRequests.delete(id);
           req.resolve(undefined);
         }
       }

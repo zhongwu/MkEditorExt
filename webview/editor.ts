@@ -10,6 +10,7 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
 import type { Mode } from '../src/protocol';
 import {
   HighlightStyle,
@@ -22,6 +23,7 @@ import { formattingKeymap } from './commands';
 import { gitGutter } from './gitGutter';
 import { imageHandlers } from './imagePaste';
 import { renderHtmlFacet } from './livePreview/blocks';
+import { headingCompletion } from './livePreview/completion';
 import { footnoteExtension } from './livePreview/footnotes';
 import { lazyMarkdown } from './livePreview/languages';
 import { linkAt } from './livePreview/links';
@@ -30,6 +32,7 @@ import { mathExtension } from './livePreview/math';
 import { engage, pristineField } from './livePreview/reveal';
 import { livePreviewTheme } from './livePreview/theme';
 import { modeExtensions } from './modes';
+import { createVscodeSearchPanel, openFindPanel, searchPanelTheme } from './searchPanel';
 
 /** Marks transactions that apply the host's text, so they aren't sent back as edits. */
 export const remoteChange = Annotation.define<boolean>();
@@ -44,7 +47,8 @@ export interface EditorOptions {
   /** Draw raw HTML blocks (sanitized) instead of showing their source. */
   renderHtml: boolean;
   mode: Mode;
-  onLocalChange(changes: ChangeSet, startDoc: Text): void;
+  onLocalChange(changes: ChangeSet, startDoc: Text, composing: boolean): void;
+  onCompositionEnd?(): void;
   onHistory(command: 'undo' | 'redo'): void;
   onOpenLink(href: string): void;
   /** Image files pasted or dropped; `pos` is the drop position, or null for a paste. */
@@ -81,6 +85,25 @@ const theme = EditorView.theme({
   },
   '.cm-activeLine': {
     backgroundColor: 'var(--vscode-editor-lineHighlightBackground, transparent)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete': {
+    backgroundColor:
+      'var(--vscode-editorSuggestWidget-background, var(--vscode-editorWidget-background))',
+    color: 'var(--vscode-editorSuggestWidget-foreground, var(--vscode-foreground))',
+    border:
+      '1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-editorWidget-border, transparent))',
+    fontFamily: 'var(--vscode-font-family)',
+    fontSize: 'var(--vscode-font-size)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    backgroundColor:
+      'var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground))',
+    color:
+      'var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)))',
+  },
+  '.cm-completionDetail': {
+    color: 'var(--vscode-descriptionForeground)',
+    marginLeft: '0.6em',
   },
 });
 
@@ -148,7 +171,18 @@ export function createEditor(options: EditorOptions): EditorView {
         // No history() and no history keymap: undo and redo belong to VS Code (PLAN.md §3.1).
         // VS Code's webview wrapper forwards Ctrl+Z / Ctrl+Y to the workbench, which undoes
         // the document; the result arrives as a `replace`.
-        keymap.of([...formattingKeymap, ...defaultKeymap, indentWithTab]),
+        search({ top: true, createPanel: createVscodeSearchPanel }),
+        highlightSelectionMatches(),
+        headingCompletion,
+        keymap.of([
+          ...formattingKeymap,
+          { key: 'Mod-f', run: (v) => openFindPanel(v, false), scope: 'editor search-panel' },
+          { key: 'Ctrl-h', run: (v) => openFindPanel(v, true), scope: 'editor search-panel' },
+          { key: 'Mod-Alt-f', run: (v) => openFindPanel(v, true), scope: 'editor search-panel' },
+          ...searchKeymap,
+          ...defaultKeymap,
+          indentWithTab,
+        ]),
         markdownSupport.extension,
         syntaxHighlighting(highlightStyle),
         modeExtensions(options.mode, options.baseUri),
@@ -157,6 +191,7 @@ export function createEditor(options: EditorOptions): EditorView {
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ 'aria-label': l10n.t('Markdown editor') }),
         theme,
+        searchPanelTheme,
         livePreviewTheme,
         EditorView.domEventHandlers({
           // Ctrl+click (Cmd+click on macOS) opens a link, as in VS Code's own editor.
@@ -175,8 +210,23 @@ export function createEditor(options: EditorOptions): EditorView {
             options.onOpenLink(href);
             return true;
           },
-          keydown(_event, view) {
+          compositionend(_event, view) {
+            setTimeout(() => {
+              if (!view.composing) options.onCompositionEnd?.();
+            }, 20);
+            return false;
+          },
+          blur(_event, view) {
+            setTimeout(() => {
+              if (!view.composing) options.onCompositionEnd?.();
+            }, 20);
+            return false;
+          },
+          keydown(event, view) {
             engageEditor(view);
+            if (!event.isComposing && event.keyCode !== 229 && !view.composing) {
+              options.onCompositionEnd?.();
+            }
             return false;
           },
           // Fallback if the browser's own undo reaches the editor (e.g. from a context menu):
@@ -193,7 +243,8 @@ export function createEditor(options: EditorOptions): EditorView {
         EditorView.updateListener.of((update) => {
           for (const tr of update.transactions) {
             if (tr.docChanged && !tr.annotation(remoteChange)) {
-              options.onLocalChange(tr.changes, tr.startState.doc);
+              const composing = update.view.composing || tr.isUserEvent('input.type.compose');
+              options.onLocalChange(tr.changes, tr.startState.doc, composing);
             }
           }
         }),
@@ -201,6 +252,18 @@ export function createEditor(options: EditorOptions): EditorView {
     }),
   });
   markdownSupport.attach(view);
+  // Open Find & Replace even when focus is in the toolbar or an edited table cell.
+  window.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented) return;
+    const isMac = /Mac/.test(navigator.platform);
+    const mod = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey;
+    const key = event.key.toLowerCase();
+    if (mod && !event.altKey && !event.shiftKey && (key === 'f' || (key === 'h' && !isMac))) {
+      event.preventDefault();
+      engageEditor(view);
+      openFindPanel(view, key === 'h');
+    }
+  });
   // A link Ctrl/Cmd+clicked in a table cell (the table widget reports it).
   view.dom.addEventListener('md-open-link', (event) => {
     options.onOpenLink((event as CustomEvent<string>).detail);

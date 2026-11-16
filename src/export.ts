@@ -24,10 +24,12 @@ export interface ExportOptions {
   images?: ReadonlyMap<string, { mime: string; data: Uint8Array }>;
   /** KaTeX's stylesheet with its fonts inlined; added only if the document has math. */
   katexCss?: string;
-  /** Pass raw HTML blocks through, sanitized (`mdEditor.renderHtml`); otherwise they are shown as text. */
+  /** Raw HTML blocks passed through, sanitized (`mdEditor.renderHtml`); otherwise they are shown as text. */
   rawHtml?: boolean;
   /** Mermaid diagrams as SVG, by their source. Diagrams not listed are shown as code. */
   diagrams?: ReadonlyMap<string, string>;
+  /** Highlighted HTML for fenced code blocks, keyed by `${lang}\n${code}`. */
+  highlightedCode?: ReadonlyMap<string, string>;
 }
 
 const IMG_SRC = /<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']/gi;
@@ -228,8 +230,15 @@ function createParser(options: ExportOptions) {
     if (svg) {
       return `<div class="diagram" role="img" aria-label="Mermaid diagram">${svg}</div>\n`;
     }
-    if (tokens[i].info.trim().toLowerCase() === 'math') {
+    const lang = tokens[i].info.trim().split(/\s+/)[0].toLowerCase();
+    if (lang === 'math') {
       return `<div class="math-block">${renderMath(tokens[i].content, true, env as Env)}</div>\n`;
+    }
+    const highlighted = lang
+      ? options.highlightedCode?.get(`${lang}\n${tokens[i].content}`)
+      : undefined;
+    if (highlighted !== undefined) {
+      return `<pre><code class="language-${escapeHtml(lang)}">${highlighted}</code></pre>\n`;
     }
     return fence(tokens, i, o, env, self);
   };
@@ -258,6 +267,22 @@ export function collectDiagramSources(markdown: string): string[] {
     if (token.type === 'fence' && isMermaid(token)) sources.add(token.content);
   }
   return [...sources];
+}
+
+/** Unique fenced code blocks with a language (excluding `mermaid` and `math`) for highlighting. */
+export function collectCodeBlocks(markdown: string): { lang: string; code: string }[] {
+  const seen = new Set<string>();
+  const blocks: { lang: string; code: string }[] = [];
+  for (const token of createParser({}).parse(stripFrontMatter(markdown), {})) {
+    if (token.type !== 'fence') continue;
+    const lang = token.info.trim().split(/\s+/)[0].toLowerCase();
+    if (!lang || lang === 'mermaid' || lang === 'math') continue;
+    const key = `${lang}\n${token.content}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    blocks.push({ lang, code: token.content });
+  }
+  return blocks;
 }
 
 /** The `src` of every image in the document, so the caller can read the local ones. */
@@ -292,8 +317,8 @@ function escapeHtml(text: string): string {
 }
 
 const STYLE = `
-:root { color-scheme: light dark; --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; }
-@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --muted: #9198a1; --line: #3d444d; --code: #151b23; --link: #4493f8; } }
+:root { color-scheme: light dark; --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; --tok-keyword: #cf222e; --tok-string: #0a3069; --tok-number: #0550ae; --tok-comment: #59636e; --tok-function: #8250df; --tok-type: #953800; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --muted: #9198a1; --line: #3d444d; --code: #151b23; --link: #4493f8; --tok-keyword: #ff7b72; --tok-string: #a5d6ff; --tok-number: #79c0ff; --tok-comment: #8b949e; --tok-function: #d2a8ff; --tok-type: #ffa657; } }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 article { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; overflow-wrap: break-word; }
 h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.6em 0 0.6em; }
@@ -304,6 +329,7 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mon
 code { background: var(--code); padding: 0.15em 0.35em; border-radius: 4px; }
 pre { background: var(--code); padding: 12px 16px; border-radius: 6px; overflow: auto; }
 pre code { background: none; padding: 0; }
+.tok-keyword { color: var(--tok-keyword); } .tok-string { color: var(--tok-string); } .tok-number { color: var(--tok-number); } .tok-comment { color: var(--tok-comment); font-style: italic; } .tok-function { color: var(--tok-function); } .tok-type { color: var(--tok-type); }
 blockquote { margin: 1em 0; padding: 0 1em; color: var(--muted); border-left: 4px solid var(--line); }
 table { border-collapse: collapse; margin: 1em 0; }
 th, td { border: 1px solid var(--line); padding: 6px 13px; }
@@ -320,7 +346,7 @@ li.task-list-item { list-style: none; margin-left: -1.4em; }
 .alert-caution { border-left-color: #cf222e; }
 .footnotes { font-size: 0.9em; color: var(--muted); }
 @media print {
-  :root { --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; }
+  :root { --fg: #1f2328; --bg: #ffffff; --muted: #59636e; --line: #d1d9e0; --code: #f6f8fa; --link: #0969da; --tok-keyword: #cf222e; --tok-string: #0a3069; --tok-number: #0550ae; --tok-comment: #59636e; --tok-function: #8250df; --tok-type: #953800; }
   article { max-width: none; padding: 0; }
   pre { white-space: pre-wrap; }
   pre, blockquote, table, img, .diagram, .math-block, tr { break-inside: avoid; }

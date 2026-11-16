@@ -28,6 +28,12 @@ export type ExportFormat = 'html' | 'pdf';
 
 export const EXPORT_FORMATS: readonly ExportFormat[] = ['html', 'pdf'];
 
+/** A fenced code block sent to the webview for syntax highlighting during export. */
+export interface CodeBlockInput {
+  lang: string;
+  code: string;
+}
+
 /** Messages handled by DocumentSync. */
 export type SyncMessage =
   | { type: 'ready' }
@@ -45,6 +51,8 @@ export type WebviewMessage =
   | { type: 'export'; format: ExportFormat }
   /** The diagrams drawn for `drawDiagrams` `id`, as SVG, in order; null where one failed. */
   | { type: 'diagrams'; id: number; svgs: (string | null)[] }
+  /** Highlighted HTML for `highlightCode` `id`, in order; null where highlighting was unavailable. */
+  | { type: 'highlightedCode'; id: number; html: (string | null)[] }
   | { type: 'pasteImage'; id: number; name: string; mime: string; data: string };
 
 /** Settings the webview needs, from the `mdEditor.*` configuration. */
@@ -80,11 +88,15 @@ export type HostMessage =
   /** The text of the file as Git has it, for the change bars; null if it is not in Git. */
   | { type: 'gitBase'; text: string | null }
   /** Draw these Mermaid sources and answer with `diagrams` (for Export to HTML). */
-  | { type: 'drawDiagrams'; id: number; sources: string[] };
+  | { type: 'drawDiagrams'; id: number; sources: string[] }
+  /** Highlight these fenced code blocks and answer with `highlightedCode` (for Export to HTML). */
+  | { type: 'highlightCode'; id: number; blocks: CodeBlockInput[] };
 
-/** Most diagrams one export asks for, and the longest SVG accepted for each. */
+/** Most diagrams or code blocks one export asks for, and longest SVG/HTML accepted for each. */
 export const MAX_DIAGRAMS = 200;
+export const MAX_CODE_BLOCKS = 200;
 const MAX_SVG_LENGTH = 2_000_000;
+const MAX_HIGHLIGHTED_HTML = 2_000_000;
 
 /** Longest link target the host will try to open. */
 const MAX_HREF_LENGTH = 2048;
@@ -143,6 +155,16 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
         m.svgs.length <= MAX_DIAGRAMS &&
         m.svgs.every(
           (svg) => svg === null || (typeof svg === 'string' && svg.length <= MAX_SVG_LENGTH),
+        )
+      );
+    case 'highlightedCode':
+      return (
+        Number.isInteger(m.id) &&
+        Array.isArray(m.html) &&
+        m.html.length <= MAX_CODE_BLOCKS &&
+        m.html.every(
+          (item) =>
+            item === null || (typeof item === 'string' && item.length <= MAX_HIGHLIGHTED_HTML),
         )
       );
     case 'export':

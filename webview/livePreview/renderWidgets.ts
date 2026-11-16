@@ -43,6 +43,23 @@ function mermaidTheme(): string {
   return dark && !classes.contains('vscode-high-contrast-light') ? 'dark' : 'default';
 }
 
+const activeDiagrams = new Set<{ el: HTMLElement; draw: () => void }>();
+let observedTheme: string | undefined;
+
+function watchTheme(): void {
+  if (observedTheme !== undefined || typeof MutationObserver === 'undefined') return;
+  observedTheme = mermaidTheme();
+  new MutationObserver(() => {
+    const next = mermaidTheme();
+    if (next === observedTheme) return;
+    observedTheme = next;
+    for (const item of activeDiagrams) {
+      if (item.el.isConnected) item.draw();
+      else activeDiagrams.delete(item);
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}
+
 /** Renders one diagram at a time, since Mermaid keeps global state while it renders. */
 function renderDiagram(source: string, theme: string): Promise<string> {
   const key = `${theme}\n${source}`;
@@ -91,18 +108,26 @@ export class MermaidWidget extends WidgetType {
       l10n.t('Mermaid diagram: {0}', this.source.replace(/\s+/g, ' ').trim().slice(0, 200)),
     );
     el.textContent = l10n.t('Rendering diagram…');
-    renderDiagram(this.source, mermaidTheme())
-      .then((svg) => {
-        el.className = 'cm-md-mermaid cm-md-mermaid-done';
-        // Mermaid's "strict" security level has already sanitized the diagram's text.
-        el.innerHTML = svg;
-      })
-      .catch((error: unknown) => {
-        el.className = 'cm-md-mermaid cm-md-mermaid-error';
-        const message = error instanceof Error ? error.message : String(error);
-        el.textContent = l10n.t('Diagram could not be drawn: {0}', message.split('\n')[0]);
-      })
-      .finally(() => view.requestMeasure());
+    for (const item of activeDiagrams) {
+      if (!item.el.isConnected) activeDiagrams.delete(item);
+    }
+    watchTheme();
+    const draw = () => {
+      renderDiagram(this.source, mermaidTheme())
+        .then((svg) => {
+          el.className = 'cm-md-mermaid cm-md-mermaid-done';
+          // Mermaid's "strict" security level has already sanitized the diagram's text.
+          el.innerHTML = svg;
+        })
+        .catch((error: unknown) => {
+          el.className = 'cm-md-mermaid cm-md-mermaid-error';
+          const message = error instanceof Error ? error.message : String(error);
+          el.textContent = l10n.t('Diagram could not be drawn: {0}', message.split('\n')[0]);
+        })
+        .finally(() => view.requestMeasure());
+    };
+    activeDiagrams.add({ el, draw });
+    draw();
     return revealOnMouseDown(el, view);
   }
 }

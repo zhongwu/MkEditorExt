@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { CompletionContext } from '@codemirror/autocomplete';
+import { EditorState } from '@codemirror/state';
 import { classifyLink } from '../../src/links';
+import { headingCompletionSource } from '../../webview/livePreview/completion';
 
 describe('classifyLink', () => {
   it('opens web and mail links outside VS Code', () => {
@@ -48,5 +51,36 @@ describe('classifyLink', () => {
   it('ignores empty links', () => {
     expect(classifyLink('  ')).toBeUndefined();
     expect(classifyLink('?x=1')).toBeUndefined();
+  });
+});
+
+describe('headingCompletionSource', () => {
+  const complete = (marked: string) => {
+    const pos = marked.indexOf('|');
+    const doc = marked.replace('|', '');
+    const state = EditorState.create({ doc });
+    return headingCompletionSource(new CompletionContext(state, pos, false));
+  };
+
+  it('completes heading anchors after ](#', () => {
+    const result = complete('# Getting Started\n\n## Usage\n\nSee [docs](#get|)');
+    expect(result).not.toBeNull();
+    expect(result?.from).toBe(41);
+    expect(result?.options).toEqual([
+      { label: 'getting-started', detail: '# Getting Started' },
+      { label: 'usage', detail: '## Usage' },
+    ]);
+  });
+
+  it('completes immediately after # with an empty prefix', () => {
+    const result = complete('# Intro\n\n[go](#|');
+    expect(result?.from).toBe(15);
+    expect(result?.options).toEqual([{ label: 'intro', detail: '# Intro' }]);
+  });
+
+  it('returns null outside a heading link', () => {
+    expect(complete('# Intro\n\n#tag|')).toBeNull();
+    expect(complete('# Intro\n\n[go](file.md)|')).toBeNull();
+    expect(complete('# Intro\n\n[go](#intro)|')).toBeNull();
   });
 });

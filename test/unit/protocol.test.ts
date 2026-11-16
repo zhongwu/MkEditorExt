@@ -65,3 +65,13 @@ describe('pasteImage message', () => {
     expect(isWebviewMessage({ ...image, data: undefined })).toBe(false);
   });
 });
+
+describe('highlightedCode message', () => {
+  it('accepts highlighted HTML arrays and null entries', () => {
+    expect(isWebviewMessage({ type: 'highlightedCode', id: 1, html: ['<span>x</span>', null] })).toBe(
+      true,
+    );
+    expect(isWebviewMessage({ type: 'highlightedCode', id: 1, html: [123] })).toBe(false);
+    expect(isWebviewMessage({ type: 'highlightedCode', html: [] })).toBe(false);
+  });
+});

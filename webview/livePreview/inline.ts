@@ -29,7 +29,9 @@ export type InlineItem =
   /** A class for a whole line, e.g. a heading. Always applied, so line heights never change. */
   | { type: 'line'; pos: number; className: string; style?: string }
   /** A bullet list marker drawn as a bullet. */
-  | { type: 'bullet'; from: number; to: number; depth: number };
+  | { type: 'bullet'; from: number; to: number; depth: number }
+  /** The opening line of a fenced code block, drawn with its language label and Copy button. */
+  | { type: 'fence'; from: number; to: number; language: string; code: string };
 
 const HEADING = /^(ATX|Setext)Heading([1-6])$/;
 const ALERT = /^(\s*>\s*)\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i;
@@ -291,12 +293,26 @@ export function collectInline(state: EditorState, from: number, to: number): Inl
           // Code keeps its own highlighting; Markdown inside it is not styled.
           eachLine(node, 'cm-md-codeblock');
           if (name === 'FencedCode' && !touched(node) && !isDrawnBlock(node)) {
-            // The opening and closing fence lines are hidden while the cursor is elsewhere.
-            for (const mark of node.getChildren('CodeMark')) {
+            const marks = node.getChildren('CodeMark');
+            const info = node.getChild('CodeInfo');
+            const language = info ? text(info.from, info.to).trim() : '';
+            const code = node
+              .getChildren('CodeText')
+              .map((c) => text(c.from, c.to))
+              .join('');
+            marks.forEach((mark, index) => {
               const line = doc.lineAt(mark.from);
-              items.push({ type: 'line', pos: line.from, className: 'cm-md-fence-hidden' });
-              items.push({ type: 'hide', from: line.from, to: line.to });
-            }
+              const start = /^\s*$/.test(doc.sliceString(line.from, mark.from))
+                ? line.from
+                : mark.from;
+              if (index === 0) {
+                items.push({ type: 'line', pos: line.from, className: 'cm-md-fence-open' });
+                items.push({ type: 'fence', from: start, to: line.to, language, code });
+              } else {
+                items.push({ type: 'line', pos: line.from, className: 'cm-md-fence-hidden' });
+                items.push({ type: 'hide', from: start, to: line.to });
+              }
+            });
           }
           return false;
         case 'Image':
@@ -353,6 +369,49 @@ class BulletWidget extends WidgetType {
     span.textContent = BULLETS[Math.min(this.depth, BULLETS.length) - 1] ?? '•';
     span.style.width = MARKER_WIDTH;
     return span;
+  }
+}
+
+class FenceHeaderWidget extends WidgetType {
+  constructor(
+    readonly language: string,
+    readonly code: string,
+  ) {
+    super();
+  }
+  eq(other: FenceHeaderWidget): boolean {
+    return other.language === this.language && other.code === this.code;
+  }
+  toDOM(): HTMLElement {
+    const bar = document.createElement('span');
+    bar.className = 'cm-md-fence-bar';
+    const lang = document.createElement('span');
+    lang.className = 'cm-md-fence-lang';
+    lang.textContent = this.language;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cm-md-fence-copy';
+    button.textContent = l10n.t('Copy');
+    button.setAttribute('aria-label', l10n.t('Copy code'));
+    button.title = l10n.t('Copy code');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    button.addEventListener('mousedown', (event) => {
+      // Keep the cursor out of the code block so clicking Copy does not reveal the fences.
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      void navigator.clipboard?.writeText(this.code).then(() => {
+        clearTimeout(timer);
+        button.textContent = l10n.t('Copied');
+        timer = setTimeout(() => {
+          button.textContent = l10n.t('Copy');
+        }, 1200);
+      });
+    });
+    bar.append(lang, button);
+    return bar;
   }
 }
 
@@ -418,6 +477,14 @@ export function toDecorations(items: readonly InlineItem[]): DecorationSet {
         break;
       case 'line':
         ranges.push(lineDecoration(item.className, item.style).range(item.pos));
+        break;
+      case 'fence':
+        ranges.push(
+          Decoration.replace({ widget: new FenceHeaderWidget(item.language, item.code) }).range(
+            item.from,
+            item.to,
+          ),
+        );
         break;
     }
   }

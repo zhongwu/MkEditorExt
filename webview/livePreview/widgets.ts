@@ -6,8 +6,18 @@ import type { SyntaxNode } from '@lezer/common';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { l10n } from '../l10n';
 import type { Span, TableData } from './blocks';
+import { loadKatex } from './lazy';
 import { listColumn } from './listLayout';
-import { cellChange, cellRanges, insertRowChange, nextBox } from './tableEdit';
+import {
+  cellChange,
+  cellRanges,
+  deleteColumnAt,
+  deleteRowAt,
+  insertColumnAt,
+  insertRowAt,
+  insertRowChange,
+  nextBox,
+} from './tableEdit';
 
 /**
  * Clicking a widget puts the cursor at the start of its source, which shows the source instead.
@@ -23,10 +33,24 @@ export function revealOnMouseDown(element: HTMLElement, view: EditorView): HTMLE
   return element;
 }
 
-function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
+function renderSpans(spans: readonly Span[], parent: HTMLElement, view?: EditorView): void {
   for (const span of spans) {
     if (span.type === 'text') {
       parent.append(span.text);
+      continue;
+    }
+    if (span.type === 'math') {
+      const math = document.createElement('span');
+      math.className = 'cm-md-math';
+      math.textContent = span.tex;
+      loadKatex()
+        .then((katex) => {
+          math.textContent = '';
+          katex.render(span.tex, math, { displayMode: false });
+        })
+        .catch(() => math.classList.add('cm-md-math-error'))
+        .finally(() => view?.requestMeasure());
+      parent.append(math);
       continue;
     }
     if (span.type === 'task') {
@@ -56,7 +80,7 @@ function renderSpans(spans: readonly Span[], parent: HTMLElement): void {
       el.title = span.href;
       el.dataset.href = span.href;
     }
-    renderSpans(span.children, el);
+    renderSpans(span.children, el, view);
     parent.append(el);
   }
 }
@@ -206,13 +230,16 @@ export class TableWidget extends WidgetType {
   }
   toDOM(view: EditorView): HTMLElement {
     const data = this.data;
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-md-table-wrap';
+    indentBy(wrap, this.indent);
     const table = document.createElement('table');
     table.className = 'cm-md-table';
-    indentBy(table, this.indent);
     table.setAttribute(
       'aria-label',
       l10n.t('Table, {0} columns, {1} rows', data.header.length, data.rows.length + 1),
     );
+    wrap.append(table);
     // Row 0 is the header; the cells of each row, for moving between them.
     const grid: HTMLTableCellElement[][] = [];
     const addRow = (parent: HTMLElement, cells: Span[][], tag: 'th' | 'td', row: number) => {
@@ -224,7 +251,7 @@ export class TableWidget extends WidgetType {
         if (align) td.style.textAlign = align;
         td.dataset.row = String(row);
         td.dataset.col = String(col);
-        renderSpans(cell, td);
+        renderSpans(cell, td, view);
         tr.append(td);
         line.push(td);
       });
@@ -239,25 +266,161 @@ export class TableWidget extends WidgetType {
 
     const rangeOf = (row: number, col: number) => data.ranges[row]?.[col];
 
+    type TableAction =
+      | 'insertRowAbove'
+      | 'insertRowBelow'
+      | 'deleteRow'
+      | 'insertColLeft'
+      | 'insertColRight'
+      | 'deleteCol';
+
     const edit = (td: HTMLTableCellElement): void => {
       const row = Number(td.dataset.row);
       const col = Number(td.dataset.col);
       const cell = rangeOf(row, col);
       if (!cell) return;
       // The cell ranges count from the start of the table, which moves when text above changes.
-      const origin = view.posAtDOM(table);
+      const origin = view.posAtDOM(wrap);
       const range = { from: origin + cell.from, to: origin + cell.to };
       const original = view.state.doc.sliceString(range.from, range.to);
       const shown = [...td.childNodes];
       let finished = false;
 
+      const bar = document.createElement('div');
+      bar.className = 'cm-md-table-bar';
+      const actionButtons: [TableAction, string, boolean][] = [
+        ['insertRowAbove', l10n.t('Insert row above'), row === 0],
+        ['insertRowBelow', l10n.t('Insert row below'), false],
+        ['deleteRow', l10n.t('Delete row'), row === 0],
+        ['insertColLeft', l10n.t('Insert column left'), false],
+        ['insertColRight', l10n.t('Insert column right'), false],
+        ['deleteCol', l10n.t('Delete column'), data.header.length <= 1],
+      ];
+      for (const [action, label, disabled] of actionButtons) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.disabled = disabled;
+        button.addEventListener('mousedown', (event) => event.preventDefault());
+        button.addEventListener('click', () => runAction(action));
+        bar.append(button);
+      }
+      wrap.append(bar);
+      view.requestMeasure();
+
       const restore = () => {
         td.removeAttribute('contenteditable');
         delete td.dataset.editing;
         td.replaceChildren(...shown);
+        bar.remove();
+        view.requestMeasure();
       };
-      /** Ends the edit; `step` moves on to the previous (-1) or next (1) cell. */
-      const finish = (save: boolean, step: -1 | 0 | 1) => {
+
+      const runAction = (action: TableAction) => {
+        if (finished || view.state.readOnly) return;
+        const isDelete = action === 'deleteRow' || action === 'deleteCol';
+        const cellEdit = isDelete ? null : cellChange(range, original, td.textContent ?? '');
+        finished = true;
+        td.removeEventListener('keydown', onKey);
+        td.removeEventListener('focusout', onBlur);
+        restore();
+
+        const base = view.state;
+        const tr1 = cellEdit ? base.update({ changes: cellEdit }) : null;
+        const doc = tr1 ? tr1.state.doc : base.doc;
+        const headerLine = doc.lineAt(origin);
+        const delimLine = doc.line(headerLine.number + 1);
+        const bodyLines = data.rows.map((_, i) => doc.line(headerLine.number + 2 + i));
+        const rowLines = [headerLine, ...bodyLines];
+        const allLines = [
+          { from: headerLine.from, text: headerLine.text },
+          { from: delimLine.from, text: delimLine.text, isDelimiter: true },
+          ...bodyLines.map((l) => ({ from: l.from, text: l.text })),
+        ];
+
+        let structural: { from: number; to: number; insert?: string }[] | null = null;
+        let nextCell: [number, number] = [row, col];
+        switch (action) {
+          case 'insertRowAbove': {
+            const c = insertRowAt(
+              { headerEnd: headerLine.to, delimiterEnd: delimLine.to, rowLines },
+              row,
+              'above',
+              data.header.length,
+            );
+            if (c) {
+              structural = [c];
+              nextCell = [row, col];
+            }
+            break;
+          }
+          case 'insertRowBelow': {
+            const c = insertRowAt(
+              { headerEnd: headerLine.to, delimiterEnd: delimLine.to, rowLines },
+              row,
+              'below',
+              data.header.length,
+            );
+            if (c) {
+              structural = [c];
+              nextCell = [row + 1, col];
+            }
+            break;
+          }
+          case 'deleteRow': {
+            const c = deleteRowAt(rowLines, row);
+            if (c) {
+              structural = [c];
+              nextCell = [row < data.rows.length ? row : row - 1, col];
+            }
+            break;
+          }
+          case 'insertColLeft': {
+            const c = insertColumnAt(allLines, col, 'left');
+            if (c) {
+              structural = c;
+              nextCell = [row, col];
+            }
+            break;
+          }
+          case 'insertColRight': {
+            const c = insertColumnAt(allLines, col, 'right');
+            if (c) {
+              structural = c;
+              nextCell = [row, col + 1];
+            }
+            break;
+          }
+          case 'deleteCol': {
+            const c = deleteColumnAt(allLines, col);
+            if (c) {
+              structural = c;
+              nextCell = [row, Math.min(col, data.header.length - 2)];
+            }
+            break;
+          }
+        }
+
+        if (!structural) {
+          if (tr1) {
+            resume = { pos: origin, row, col };
+            view.dispatch({ changes: tr1.changes, userEvent: 'input.type' });
+          } else {
+            edit(td);
+          }
+          return;
+        }
+
+        const nextState = tr1 ? tr1.state : base;
+        const changes = tr1
+          ? tr1.changes.compose(nextState.changes(structural))
+          : base.changes(structural);
+        resume = { pos: origin, row: nextCell[0], col: nextCell[1] };
+        view.dispatch({ changes, userEvent: 'input.type' });
+      };
+
+      /** Ends the edit; `move` moves on to the previous (-1), next (1) or an explicit cell. */
+      const finish = (save: boolean, move: -1 | 0 | 1 | [number, number]) => {
         if (finished) return;
         finished = true;
         td.removeEventListener('keydown', onKey);
@@ -265,11 +428,13 @@ export class TableWidget extends WidgetType {
         const change = save ? cellChange(range, original, td.textContent ?? '') : null;
         restore();
         let target: [number, number] | undefined;
-        if (step !== 0) {
+        if (Array.isArray(move)) {
+          target = move;
+        } else if (move !== 0) {
           const flat = grid.flatMap((cells, r) => cells.map((_, c) => [r, c] as [number, number]));
           const at = flat.findIndex(([r, c]) => r === row && c === col);
-          target = flat[at + step];
-          if (!target && step === 1 && !view.state.readOnly) {
+          target = flat[at + move];
+          if (!target && move === 1 && !view.state.readOnly) {
             // Tab in the last cell of the table: append a new row and start editing its first cell.
             const lastRowRanges = data.ranges[data.ranges.length - 1];
             const lastCellRange = lastRowRanges?.[lastRowRanges.length - 1];
@@ -305,6 +470,12 @@ export class TableWidget extends WidgetType {
         } else if (event.key === 'Tab') {
           event.preventDefault();
           finish(true, event.shiftKey ? -1 : 1);
+        } else if (event.key === 'ArrowUp' && row > 0 && rangeOf(row - 1, col)) {
+          event.preventDefault();
+          finish(true, [row - 1, col]);
+        } else if (event.key === 'ArrowDown' && row + 1 < grid.length && rangeOf(row + 1, col)) {
+          event.preventDefault();
+          finish(true, [row + 1, col]);
         }
       };
       const onBlur = () => finish(true, 0);
@@ -339,7 +510,7 @@ export class TableWidget extends WidgetType {
       const box = (event.target as Element).closest<HTMLElement>('.cm-md-checkbox');
       if (box && td && !event.shiftKey && !view.state.readOnly) {
         // A box in the cell: `☐` to `☑` to `☒` and back (the emoji form is replaced by the plain one).
-        const from = view.posAtDOM(table) + Number(box.dataset.at);
+        const from = view.posAtDOM(wrap) + Number(box.dataset.at);
         const insert = nextBox(view.state.doc.sliceString(from, from + 1));
         view.dispatch({
           changes: { from, to: from + Number(box.dataset.length), insert },
@@ -355,7 +526,7 @@ export class TableWidget extends WidgetType {
       if (td && editable) {
         edit(td);
       } else {
-        view.dispatch({ selection: { anchor: view.posAtDOM(table) } });
+        view.dispatch({ selection: { anchor: view.posAtDOM(wrap) } });
         view.focus();
       }
     });
@@ -363,14 +534,14 @@ export class TableWidget extends WidgetType {
     if (resume) {
       setTimeout(() => {
         // Only the table that was being edited takes over, wherever it now is.
-        if (!resume || !table.isConnected || view.posAtDOM(table) !== resume.pos) return;
+        if (!resume || !wrap.isConnected || view.posAtDOM(wrap) !== resume.pos) return;
         const { row, col } = resume;
         resume = undefined;
         const next = grid[row]?.[col];
         if (next?.isConnected) edit(next);
       });
     }
-    return table;
+    return wrap;
   }
 }
 

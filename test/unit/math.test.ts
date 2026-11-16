@@ -83,6 +83,18 @@ describe('math and diagrams in the block preview', () => {
     expect(blocks('a $x^@2$ b')).toEqual([]);
   });
 
+  it('parses inline math inside table cells', () => {
+    const [table] = blocks('| Formula | Value |\n| --- | --- |\n| $x^2$ | **ok** |\n\n^z');
+    expect(table?.type).toBe('table');
+    if (table?.type !== 'table') throw new Error('not a table');
+    expect(table.data.rows).toEqual([
+      [
+        [{ type: 'math', tex: 'x^2' }],
+        [{ type: 'strong', children: [{ type: 'text', text: 'ok' }] }],
+      ],
+    ]);
+  });
+
   it('draws a block formula from $$ and from a math fence', () => {
     expect(blocks('$$\na+b\n$$\n\n^z')).toEqual([
       { type: 'math', from: 0, to: 9, tex: 'a+b', display: true },

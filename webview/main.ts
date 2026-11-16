@@ -5,6 +5,7 @@ import { imageAlt, imageMarkdown } from '../src/images';
 import { setGitBase } from './gitGutter';
 import { createEditor, remoteChange, revealLine, setRenderHtml } from './editor';
 import { readBase64 } from './imagePaste';
+import { highlightCodeBlocks } from './livePreview/languages';
 import { configureAssets } from './livePreview/lazy';
 import { insertBoxAtCursor, insertInEditedCell } from './livePreview/widgets';
 import { drawDiagrams } from './livePreview/renderWidgets';
@@ -146,6 +147,12 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     );
     return;
   }
+  if (message.type === 'highlightCode') {
+    void highlightCodeBlocks(message.blocks).then((html) =>
+      vscode.postMessage({ type: 'highlightedCode', id: message.id, html }),
+    );
+    return;
+  }
   if (message.type === 'gitBase') {
     gitBase = message.text;
     if (view) setGitBase(view, gitBase);
@@ -168,7 +175,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
       baseUri,
       renderHtml,
       mode,
-      onLocalChange: (changes, startDoc) => sync.localChange(changes, startDoc),
+      onLocalChange: (changes, startDoc, composing) =>
+        sync.localChange(changes, startDoc, composing),
+      onCompositionEnd: () => sync.endComposition(),
       onHistory: (command) => vscode.postMessage({ type: command }),
       onOpenLink: (href) => vscode.postMessage({ type: 'openLink', href }),
       onImages: sendImages,

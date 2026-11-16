@@ -148,22 +148,29 @@ describe('code fences', () => {
   const hidden = (items: InlineItem[]) =>
     items.filter((i) => i.type === 'hide').map((h) => [h.from, h.to]);
 
-  it('hides the opening and closing fence lines while the cursor is away', () => {
+  it('draws a header with the language and code on the opening fence and hides the closing fence', () => {
     const items = inline('```js\nlet a;\n```\n\n@');
-    expect(hidden(items)).toEqual([
-      [0, 5],
-      [13, 16],
+    expect(items.filter((i) => i.type === 'fence')).toEqual([
+      { type: 'fence', from: 0, to: 5, language: 'js', code: 'let a;' },
     ]);
+    expect(hidden(items)).toEqual([[13, 16]]);
+    expect(
+      items.filter((i) => i.type === 'line' && i.className === 'cm-md-fence-open'),
+    ).toHaveLength(1);
     expect(
       items.filter((i) => i.type === 'line' && i.className === 'cm-md-fence-hidden'),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it('shows the fences while the cursor is inside the block', () => {
-    expect(hidden(inline('```js\nlet@ a;\n```\n'))).toEqual([]);
+    const items = inline('```js\nlet@ a;\n```\n');
+    expect(hidden(items)).toEqual([]);
+    expect(items.filter((i) => i.type === 'fence')).toEqual([]);
   });
 
   it('leaves mermaid and math fences to their widgets', () => {
-    expect(hidden(inline('```mermaid\ngraph TD\n```\n\n@'))).toEqual([]);
+    const items = inline('```mermaid\ngraph TD\n```\n\n@');
+    expect(hidden(items)).toEqual([]);
+    expect(items.filter((i) => i.type === 'fence')).toEqual([]);
   });
 });

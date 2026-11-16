@@ -7,6 +7,7 @@ import {
   imageMimeForName,
   imageStem,
 } from '../../src/images';
+import { countWords } from '../../src/wordCount';
 
 describe('findHeadings', () => {
   it('finds # headings with their level, line and anchor', () => {
@@ -113,5 +114,13 @@ describe('imageMimeForName', () => {
     expect(imageMimeForName('x.jpg')).toBe('image/jpeg');
     expect(imageMimeForName('notes.txt')).toBeUndefined();
     expect(imageMimeForName('png')).toBeUndefined();
+  });
+});
+
+describe('countWords', () => {
+  it('counts words, skips front matter, and counts CJK characters individually', () => {
+    expect(countWords('')).toBe(0);
+    expect(countWords('---\ntitle: Test Document\n---\n\nHello world!')).toBe(2);
+    expect(countWords('你好世界 hello-world 123')).toBe(6);
   });
 });

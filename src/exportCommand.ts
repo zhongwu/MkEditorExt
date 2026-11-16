@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
-import { collectDiagramSources, collectImageSources, renderHtml } from './export';
+import {
+  collectCodeBlocks,
+  collectDiagramSources,
+  collectImageSources,
+  renderHtml,
+} from './export';
 import { imageMimeForName } from './images';
 import { findBrowser, printToPdf } from './pdf';
+import { MAX_CODE_BLOCKS, MAX_DIAGRAMS, type CodeBlockInput } from './protocol';
 
 /** Larger images are linked, not embedded, so the page stays a reasonable size. */
 const MAX_EMBEDDED_BYTES = 5 * 1024 * 1024;
@@ -69,16 +75,22 @@ async function readKatexCss(extensionUri: vscode.Uri): Promise<string> {
 }
 
 type DrawDiagrams = (sources: string[]) => Promise<(string | null)[] | undefined>;
+type HighlightCode = (blocks: CodeBlockInput[]) => Promise<(string | null)[] | undefined>;
 
 /** The document as one standalone HTML page, with its images, math and diagrams embedded. */
 async function buildPage(
   extensionUri: vscode.Uri,
   document: vscode.TextDocument,
   drawDiagrams: DrawDiagrams,
+  highlightCode?: HighlightCode,
 ): Promise<string> {
   const text = document.getText();
-  const sources = collectDiagramSources(text);
-  const drawn = sources.length > 0 ? await drawDiagrams(sources) : undefined;
+  const sources = collectDiagramSources(text).slice(0, MAX_DIAGRAMS);
+  const codeBlocks = collectCodeBlocks(text).slice(0, MAX_CODE_BLOCKS);
+  const [drawn, highlighted] = await Promise.all([
+    sources.length > 0 ? drawDiagrams(sources) : Promise.resolve(undefined),
+    codeBlocks.length > 0 && highlightCode ? highlightCode(codeBlocks) : Promise.resolve(undefined),
+  ]);
   const diagrams = new Map<string, string>();
   drawn?.forEach((svg, index) => svg && diagrams.set(sources[index], svg));
   if (sources.length > 0 && diagrams.size < sources.length) {
@@ -90,11 +102,19 @@ async function buildPage(
           ),
     );
   }
+  const highlightedCode = new Map<string, string>();
+  highlighted?.forEach((html, index) => {
+    if (html !== null) {
+      const { lang, code } = codeBlocks[index];
+      highlightedCode.set(`${lang}\n${code}`, html);
+    }
+  });
   const hasMath = text.includes('$') || /^\s*(`{3,}|~{3,})\s*math\b/im.test(text);
   const rawHtml = vscode.workspace.getConfiguration('mdEditor').get<boolean>('renderHtml', false);
   return renderHtml(text, {
     rawHtml,
     diagrams,
+    highlightedCode,
     images: await readLocalImages(document, rawHtml),
     katexCss: hasMath ? await readKatexCss(extensionUri) : '',
   });
@@ -115,6 +135,7 @@ export async function exportPdf(
   extensionUri: vscode.Uri,
   document: vscode.TextDocument,
   drawDiagrams: DrawDiagrams,
+  highlightCode?: HighlightCode,
 ): Promise<void> {
   const configured = vscode.workspace.getConfiguration('mdEditor').get<string>('browserPath', '');
   const browser = await findBrowser(configured.trim() || undefined);
@@ -126,7 +147,7 @@ export async function exportPdf(
     );
     return;
   }
-  const html = await buildPage(extensionUri, document, drawDiagrams);
+  const html = await buildPage(extensionUri, document, drawDiagrams, highlightCode);
   const target = await vscode.window.showSaveDialog({
     defaultUri: defaultTarget(document, 'pdf'),
     filters: { PDF: ['pdf'] },
@@ -163,8 +184,9 @@ export async function exportHtml(
   extensionUri: vscode.Uri,
   document: vscode.TextDocument,
   drawDiagrams: DrawDiagrams,
+  highlightCode?: HighlightCode,
 ): Promise<void> {
-  const html = await buildPage(extensionUri, document, drawDiagrams);
+  const html = await buildPage(extensionUri, document, drawDiagrams, highlightCode);
   const target = await vscode.window.showSaveDialog({
     defaultUri: defaultTarget(document, 'html'),
     filters: { HTML: ['html'] },

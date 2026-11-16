@@ -7,8 +7,8 @@ export type LineChange =
   /** Lines were removed after the first `at` lines of the new text. */
   | { kind: 'deleted'; at: number };
 
-/** Most cells of the comparison table; a bigger difference is reported as one change. */
-const MAX_CELLS = 4_000_000;
+/** Maximum edit distance explored before falling back to one combined hunk. */
+const MAX_EDITS = 4000;
 
 /** The changes that turn `oldLines` into `newLines`, in order. */
 export function diffLines(oldLines: readonly string[], newLines: readonly string[]): LineChange[] {
@@ -43,43 +43,88 @@ export function diffLines(oldLines: readonly string[], newLines: readonly string
     }
   };
 
-  if (m === 0 || n === 0 || m * n > MAX_CELLS) {
+  if (m === 0 || n === 0) {
     hunk(m, start, n);
     return changes;
   }
 
-  // lcs[i * (n + 1) + j]: the length of the longest common run of old[i..] and new[j..].
-  const width = n + 1;
-  const lcs = new Uint16Array((m + 1) * width);
-  for (let i = m - 1; i >= 0; i--) {
-    for (let j = n - 1; j >= 0; j--) {
-      lcs[i * width + j] =
-        oldLines[start + i] === newLines[start + j]
-          ? lcs[(i + 1) * width + j + 1] + 1
-          : Math.max(lcs[(i + 1) * width + j], lcs[i * width + j + 1]);
+  // Myers O((M + N)D) shortest-edit-script diff.
+  const maxD = Math.min(m + n, MAX_EDITS);
+  const offset = maxD;
+  const v = new Int32Array(2 * maxD + 1);
+  const trace: Int32Array[] = [];
+  let reached = false;
+  for (let d = 0; d <= maxD; d++) {
+    for (let k = -d; k <= d; k += 2) {
+      const down = k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]);
+      let x = down ? v[offset + k + 1] : v[offset + k - 1] + 1;
+      let y = x - k;
+      while (x < m && y < n && oldLines[start + x] === newLines[start + y]) {
+        x++;
+        y++;
+      }
+      v[offset + k] = x;
+      if (x >= m && y >= n) {
+        reached = true;
+        break;
+      }
     }
+    trace.push(v.slice(offset - d, offset + d + 1));
+    if (reached) break;
   }
 
-  let i = 0;
-  let j = 0;
+  if (!reached) {
+    hunk(m, start, n);
+    return changes;
+  }
+
+  const steps: ('equal' | 'insert' | 'delete')[] = [];
+  let x = m;
+  let y = n;
+  for (let d = trace.length - 1; d >= 1; d--) {
+    const prev = trace[d - 1];
+    const k = x - y;
+    const down = k === -d || (k !== d && prev[k - 1 + (d - 1)] < prev[k + 1 + (d - 1)]);
+    const prevK = down ? k + 1 : k - 1;
+    const prevX = prev[prevK + (d - 1)];
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) {
+      steps.push('equal');
+      x--;
+      y--;
+    }
+    if (down) {
+      steps.push('insert');
+      y--;
+    } else {
+      steps.push('delete');
+      x--;
+    }
+  }
+  while (x > 0 && y > 0) {
+    steps.push('equal');
+    x--;
+    y--;
+  }
+
   let removed = 0;
   let added = 0;
+  let j = 0;
   let hunkStart = 0;
   const flush = () => {
     hunk(removed, start + hunkStart, added);
     removed = 0;
     added = 0;
   };
-  while (i < m || j < n) {
-    if (i < m && j < n && oldLines[start + i] === newLines[start + j]) {
+  for (let s = steps.length - 1; s >= 0; s--) {
+    const step = steps[s];
+    if (step === 'equal') {
       flush();
-      i++;
       j++;
       hunkStart = j;
-    } else if (j >= n || (i < m && lcs[(i + 1) * width + j] >= lcs[i * width + j + 1])) {
+    } else if (step === 'delete') {
       if (removed === 0 && added === 0) hunkStart = j;
       removed++;
-      i++;
     } else {
       if (removed === 0 && added === 0) hunkStart = j;
       added++;

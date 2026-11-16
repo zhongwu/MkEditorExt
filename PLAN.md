@@ -93,6 +93,10 @@ Webview → host:
 | `undo` / `redo` | — |
 | `openLink` | `{ href }`. The host opens http/https/mailto links in the browser and relative file links in VS Code, and refuses other schemes (`command:`, `file:` …). |
 | `pasteImage` | `{ id, name, mime, data }`: an image from a paste or drop, `data` as base64 (plain strings travel through `postMessage` without any typed-array handling). The host accepts only the types in `src/images.ts` and refuses more than 20 MB. |
+| `chooseImage` | — Ask the host to open the image file picker. |
+| `export` | `{ format }`: `'html'` or `'pdf'`. |
+| `diagrams` | `{ id, svgs }`: Mermaid SVGs drawn for `drawDiagrams` `id`, in order (`null` where one failed). |
+| `highlightedCode` | `{ id, html }`: syntax-highlighted HTML for `highlightCode` `id`, in order (`null` where unavailable). |
 | `setMode` | `{ mode }`, so the host can remember it per workspace. |
 
 Host → webview:
@@ -103,8 +107,11 @@ Host → webview:
 | `ack` | `{ id, version }`: edit `id` was applied and the document is now at this version. |
 | `replace` | `{ text, version, id? }`: with `id`, edit `id` was rejected; without `id`, the document changed from outside. |
 | `mode` | `{ mode }`, sent before `init` and when the `mdEditor.setMode` command changes the mode. |
-| `imageSaved` | `{ id, path }`: the image sent as `pasteImage` `id` was saved at `path`, relative to the document. The webview then inserts the link as a normal `edit`. |
+| `imageSaved` | `{ id, path, alt? }`: the image sent as `pasteImage` `id` (or picked with `chooseImage`, `id: 0`) was saved at `path`, relative to the document. The webview then inserts the link as a normal `edit`. |
 | `revealLine` | `{ line }`: put the cursor at the start of that line and scroll it to the top (Go to Heading and `#anchor` links). |
+| `gitBase` | `{ text }`: the staged Git text of the file (`null` if not tracked) for `gitGutter.ts`. |
+| `drawDiagrams` | `{ id, sources }`: render Mermaid diagrams to SVG for export. |
+| `highlightCode` | `{ id, blocks }`: syntax-highlight fenced code blocks for export. |
 | `settings` | `{ settings }`, sent just before `init` and again on `onDidChangeConfiguration`. Kept separate from the sync messages so `DocumentSync` only deals with text. |
 
 Every `edit` gets exactly one answer: an `ack` or a `replace` carrying its `id`. Without ids, an outside change that arrives while an edit is in flight can be mistaken for the answer to that edit. If an `ack` arrives for an edit whose text was already overwritten by an outside `replace`, the webview sends `ready` again to get the full text.
@@ -123,8 +130,9 @@ The VS Code change event doesn't say where an edit came from, and `applyEdit` is
 
 **Webview (`sync.ts`):**
 1. At most **one edit is in flight**. Changes the user types while waiting are combined into a single pending change with CodeMirror's `ChangeSet.compose`.
-2. On `ack`, the webview records the new version and sends the pending change, if any, with `baseVersion` set to that version.
-3. On `replace`, the webview drops any pending change and replaces its text. It computes the shared start and end of the old and new text and replaces only the middle, so the cursor, scroll position and widgets elsewhere stay put. This transaction is tagged with a CodeMirror annotation so it isn't sent back as an edit. *Trade-off:* keystrokes typed in the instant an outside change arrives are lost. This is rare and keeps the logic simple and correct.
+2. Intermediate IME composition transactions (`view.composing` / `input.type.compose`) are also held in `pending` and flushed as one combined edit when composition ends (`endComposition()`, called on `compositionend`, `blur`, or non-composing `keydown`).
+3. On `ack`, the webview records the new version and sends the pending change, if any, with `baseVersion` set to that version (unless still composing).
+4. On `replace`, the webview drops any pending change (including held IME composition edits) and replaces its text. It computes the shared start and end of the old and new text and replaces only the middle, so the cursor, scroll position and widgets elsewhere stay put. This transaction is tagged with a CodeMirror annotation so it isn't sent back as an edit. *Trade-off:* keystrokes typed in the instant an outside change arrives are lost. This is rare and keeps the logic simple and correct.
 
 **Host (`DocumentSync`):**
 1. If `edit.baseVersion !== document.version`, the webview was out of date. Reject the edit and send `replace` with the current text.
@@ -210,6 +218,9 @@ script-src 'nonce-${nonce}';
     - 📄 `pdf.ts` — PDF export through Chrome or Edge
     - 📄 `headings.ts` — Go to Heading
     - 📄 `links.ts` — link handling
+    - 📄 `gitBase.ts` — watches the staged Git text of open documents
+    - 📄 `lineDiff.ts` — Myers line diff for Git change bars
+    - 📄 `wordCount.ts` — document word count for the status bar
     - 📄 `util/nonce.ts` — CSP nonce
   - **📁 webview/** — the editor inside the webview (runs in the browser)
     - 📄 `main.ts` — entry point
@@ -218,17 +229,26 @@ script-src 'nonce-${nonce}';
     - 📄 `commands.ts` — formatting commands and shortcuts, minimal-edit rule (§3.6)
     - 📄 `toolbar.ts` — the toolbar
     - 📄 `modes.ts` — Live, Source and Reading
+    - 📄 `gitGutter.ts` — Git change bars in the editor gutter
     - 📄 `imagePaste.ts` — paste and drop of images
+    - 📄 `l10n.ts` — webview localization bundle lookup
     - 📄 `viewState.ts` — scroll position and mode kept across reloads
     - **📁 lazy/** — code loaded on demand: katex, mermaid, code languages
     - **📁 styles/** — `editor.css`
     - **📁 livePreview/** — the rendered look (§3.5)
       - 📄 `reveal.ts` — which nodes the selection touches
-      - 📄 `inline.ts` — marks and hidden symbols
+      - 📄 `inline.ts` — marks, hidden symbols, and code fence headers
       - 📄 `blocks.ts` — block widgets and the ranges they replace
-      - 📄 `widgets.ts` — checkbox, rule and other small widgets
+      - 📄 `widgets.ts` — checkbox, rule, table, and other widgets
       - 📄 `renderWidgets.ts` — math and Mermaid
-      - 📄 `tableEdit.ts` — editing table cells in place
+      - 📄 `tableEdit.ts` — editing table cells, rows, and columns in place
+      - 📄 `completion.ts` — `#heading` anchor completion
+      - 📄 `composition.ts` — IME composition tracking
+      - 📄 `languages.ts` — lazy fenced code language loading and export highlighting
+      - 📄 `lazy.ts` — on-demand script/CSS loader for KaTeX, Mermaid, and languages
+      - 📄 `listLayout.ts` — list indentation matching VS Code's Markdown preview
+      - 📄 `math.ts` — Lezer Markdown `$…$` and `$$…$$` parser extension
+      - 📄 `shared.ts` — shared CodeMirror/Lezer modules exposed on `window.mdShared`
       - 📄 `images.ts` — images in the text
       - 📄 `links.ts` — links in the text
       - 📄 `footnotes.ts` — footnotes
@@ -284,9 +304,9 @@ script-src 'nonce-${nonce}';
   - [x] tables (rendered when the cursor is outside)
   - [x] horizontal rules
   - [x] front matter
-- [x] Highlight code blocks in place with nested languages, loaded on demand (`dist/languages.js`, about 1.2 MB, loaded when a fence names a language). It shares CodeMirror and Lezer with the main bundle through `window.mdShared`; a second copy would break `instanceof` checks and highlighting tags. The main bundle is now about 0.6 MB. The opening and closing fence lines are hidden (thin strips) while the cursor is outside the block, and shown while it is inside or at its edges; `mermaid` and `math` fences are left to their widgets.
-- [x] Add the math parser extension (`webview/livePreview/math.ts`) and KaTeX widgets for inline and block math. Loaded on demand.
-- [x] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7). Loaded on demand; the production bundle is about 5 MB, only loaded for files with diagrams.
+- [x] Highlight code blocks in place with nested languages, loaded on demand (`dist/languages.js`, about 1.2 MB, loaded when a fence names a language). It shares CodeMirror and Lezer with the main bundle through `window.mdShared`; a second copy would break `instanceof` checks and highlighting tags. The main bundle is now about 0.6 MB. When the cursor is outside a fenced block, the opening line is replaced by a compact header showing the language label and a Copy button (`FenceHeaderWidget` in `inline.ts`), while the closing fence line is hidden; `mermaid` and `math` fences are left to their widgets.
+- [x] Add the math parser extension (`webview/livePreview/math.ts`) and KaTeX widgets for inline and block math (including inline math inside table cells). Loaded on demand.
+- [x] Add Mermaid widgets for fenced `mermaid` blocks and settle Mermaid's CSP question (§3.7). Loaded on demand; the production bundle is about 5 MB, only loaded for files with diagrams. A `MutationObserver` on `document.body`'s classes redraws visible diagrams when VS Code switches themes.
 - [x] Raw HTML blocks: source by default; the `mdEditor.renderHtml` setting renders them through DOMPurify.
 - [x] Math also in ```math fences (as GitHub does), alongside `$…$` and `$$…$$`.
 - [x] GitHub-style alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) drawn as colored callouts, and footnotes (`[^1]`) as superscripts with the definition as a hover tooltip.
@@ -311,14 +331,16 @@ script-src 'nonce-${nonce}';
   - [ ] Try it with a real screen reader (NVDA or VoiceOver) before release (Phase 7).
 
 ### Phase 5: Extras (2–3 days, pick what you want)
-- [x] **Table editing inside the widget:** clicking a cell edits it in place. While editing, the cell shows its Markdown source; Enter, Tab or clicking away replaces just that cell between its pipes (`cellChange` in `tableEdit.ts`), so nothing else in the table moves (§3.6). Tab and Shift+Tab move to the next and previous cell, Escape cancels, a typed `|` is escaped, and Shift+click shows the whole table's source. Rows whose cells cannot be matched to the text are shown but not editable. Checked in the headless browser harness (click, type, Tab, Enter). Not handled: IME composition inside a cell, and Ctrl+Z inside a cell undoes the document, not the cell text.
-- [x] **Export to HTML** (`mdEditor.exportHtml`, `src/export.ts`, `src/exportCommand.ts`): markdown-it makes one standalone page with its CSS inlined (light and dark), heading anchors that match the editor's, tables, task lists, alerts, footnotes, and KaTeX math with its fonts inlined (only when the document has math). Local images up to 5 MB are embedded as data URIs; others stay links. **Decision: `sanitize-html`, not DOMPurify.** DOMPurify needs a browser DOM and the export runs in the extension host. The export follows `mdEditor.renderHtml`: off (the default), raw HTML is escaped and shown as text; on, raw HTML blocks are sanitized whole (no scripts, styles, forms, frames or event handlers; only http, https and mailto links) and local `<img>` files are embedded. Inline tags such as a lone `<b>` stay escaped, since they cannot be matched with their partner. The page also carries a Content Security Policy that blocks scripts. **Mermaid diagrams** are drawn by the open editor, not the host (the 5 MB Mermaid bundle needs a browser): the host sends `drawDiagrams` with the sources, the webview answers `diagrams` with one SVG each (light theme, on a white box), and the export embeds them inline. If no visible editor is open on the document (exporting from a plain text tab) or a diagram fails, its source is shown as a code block and a warning says so. Not exported: highlighting inside code blocks.
+- [x] **Table editing inside the widget:** clicking a cell edits it in place. While editing, the cell shows its Markdown source; Enter, Tab or clicking away replaces just that cell between its pipes (`cellChange` in `tableEdit.ts`), so nothing else in the table moves (§3.6). Tab and Shift+Tab move to the next and previous cell, ArrowUp/ArrowDown move between rows, Escape cancels, a typed `|` is escaped, and Shift+click shows the whole table's source. An action bar lets you insert/delete rows and columns without realigning the table. Rows whose cells cannot be matched to the text are shown but not editable. Checked in the headless browser harness (click, type, Tab, Enter). Not handled: IME composition inside a cell, and Ctrl+Z inside a cell undoes the document, not the cell text.
+- [x] **Find & Replace, heading completion, and word count:** `@codemirror/search` (`Ctrl/Cmd+F`, `Ctrl+H`) searches the full document and reveals widget/inline source via `reveal.ts` when jumping to a match; `@codemirror/autocomplete` completes `#heading` anchors on `](#` (`webview/livePreview/completion.ts`); a `StatusBarItem` shows the active document's word count (`src/wordCount.ts`).
+- [x] **Export to HTML** (`mdEditor.exportHtml`, `src/export.ts`, `src/exportCommand.ts`): markdown-it makes one standalone page with its CSS inlined (light and dark), heading anchors that match the editor's, tables, task lists, alerts, footnotes, and KaTeX math with its fonts inlined (only when the document has math). Local images up to 5 MB are embedded as data URIs; others stay links. **Decision: `sanitize-html`, not DOMPurify.** DOMPurify needs a browser DOM and the export runs in the extension host. The export follows `mdEditor.renderHtml`: off (the default), raw HTML is escaped and shown as text; on, raw HTML blocks are sanitized whole (no scripts, styles, forms, frames or event handlers; only http, https and mailto links) and local `<img>` files are embedded. Inline tags such as a lone `<b>` stay escaped, since they cannot be matched with their partner. The page also carries a Content Security Policy that blocks scripts. **Mermaid diagrams** and **syntax-highlighted code blocks** are drawn/highlighted by the open editor, not the host (the 5 MB Mermaid bundle needs a browser and the 1.2 MB `languages.js` bundle already lives in the webview): the host sends `drawDiagrams` and `highlightCode`, and the webview answers with SVGs / highlighted HTML. If no visible editor is open on the document (exporting from a plain text tab) or a diagram fails, its source is shown as a code block (with a warning for diagrams).
 - [x] **Export to PDF** (`mdEditor.exportPdf`, `src/pdf.ts`): the same page, printed to PDF by the installed Chrome or Edge in headless mode (a throwaway profile, `--print-to-pdf`, no header or footer). The page has print styles (light colors, no page-wide margins, tables, images and diagrams kept whole). The browser is looked for in the usual places for the system, or at `mdEditor.browserPath` (user settings only, since it names a program to run). If none is found the command shows an error saying so; nothing is bundled (Puppeteer was rejected for its 150 MB). Checked by printing `blocks.md` with Edge. Word (`.docx`) export is not done.
 - [x] **Settings:** `mdEditor.proseFontFamily`, `mdEditor.defaultMode`, `mdEditor.renderHtml` and `mdEditor.customCss`. The custom CSS has `"scope": "application"`, so it can only be set in user settings: a repository's `.vscode/settings.json` cannot restyle your editor. It is capped at 50,000 characters and added as a `<style>` after the editor's own.
 
 ### Phase 6: Speed and reliability (2–3 days)
 - [x] **Large files.** Measured in headless Edge with the real webview bundle (a mix of headings, lists, tables, math, code and rules; `node` harness in the scratchpad, not in the repo): at 25,000 lines / 0.5 MB typing took about 27 ms and a cursor move 18 ms; at 5 MB (259,000 lines) 184 ms and 134 ms; at 15 MB 488 ms and 348 ms. The cause was the block field walking the whole tree on every keystroke and cursor move. It now keeps its decorations and recollects only the top-level blocks that can have changed (`blockPreview` in `blocks.ts`): around each edit (in the old and the new tree, widened until the two trees agree about the next block, since an opened code fence swallows what follows), around the old and new selection, and any part of the document the parser has reached since. Results: 0.5 MB 9 ms / 4 ms, 5 MB 33 ms / 8 ms, 15 MB 84 ms / 17 ms. A randomized test (`blockField.test.ts`: 24 seeds of 300 random edits, cursor moves and parse steps) checks that the result always equals a full rebuild; it found two real bugs (table cell positions were absolute and went stale when text above changed, so they now count from the start of the table; and blocks after an edit that change structure). Inline decorations were already limited to the visible part. Not changed: CodeMirror parses in the background with a budget of about 3 s of work per 30 s, so at 15 MB the end of the file can take a few seconds to be formatted after a jump there (5 MB: about 1 s to the middle).
-- [x] **IME input** (Chinese, Japanese, Korean): while a composition is under way both preview layers keep what they have, moved along with the typing, and catch up in one go when it ends (`composition.ts`: `composingField`, set from the composition events with a release on blur or on a key that is not part of a composition, so it cannot stay stuck; the inline plugin also checks `view.composing`). Checked with Edge's own composition events (`Input.imeSetComposition`: 'n', 'ni', '你', '你h', '你好', commit): the text came out right and the heading symbols revealed afterwards. Known: each composition update is sent to the host as its own edit, so the file briefly holds the pinyin and VS Code's undo has several steps.
+- [x] **IME input** (Chinese, Japanese, Korean): while a composition is under way both preview layers keep what they have, moved along with the typing, and catch up in one go when it ends (`composition.ts`: `composingField`, set from the composition events with a release on blur or on a key that is not part of a composition, so it cannot stay stuck; the inline plugin also checks `view.composing`). `WebviewSync` also holds intermediate composition edits (`view.composing` / `input.type.compose`) and flushes them as one combined edit when composition ends or on blur, so the file does not briefly hold unfinished pinyin and VS Code's undo removes the whole composed word in one step. Checked with Edge's own composition events (`Input.imeSetComposition`: 'n', 'ni', '你', '你h', '你好', commit): the text came out right and the heading symbols revealed afterwards.
+- [x] **Git change bars (`src/lineDiff.ts`, `webview/gitGutter.ts`):** Myers $O((M+N)D)$ line diff compares the working text with the staged Git version so even far-apart edits in large files keep separate change bars without allocating an $O(m \times n)$ table.
 - [x] Chinese input checked by hand on Windows (the user, 2026-10-28: worked).
 - [ ] Still to try by hand: Japanese and Korean on Windows, and any IME on macOS, in a heading, in bold text and inside a table cell.
 - [x] Handle the webview being hidden and shown again without `retainContextWhenHidden`: on `ready` the host sends `init` again (that path already worked), and the selection and the scroll position (as the offset of the line at the top, so widgets of a different height do not matter) come back from `getState`/`setState` (`viewState.ts`, saved 250 ms after a change, checked against the new text's length). The mode is kept by the host. Checked in the browser harness: given a saved state the editor opens on the right line with the right text selected. Not yet seen by hiding a real tab in VS Code.
@@ -359,6 +381,24 @@ script-src 'nonce-${nonce}';
   - Not translated: GitHub alert titles (Note, Tip…) stay in English as on GitHub, the HTML/PDF export keeps its English alert titles, and error details from KaTeX and Mermaid come from those libraries.
   - [ ] A native speaker checks the Chinese text, especially the technical terms.
   - [ ] Japanese and Korean.
+
+### Post-0.1.13 review: fixes and features
+
+**Four fixes:**
+- [x] **Hold back IME edits until composition ends (`webview/sync.ts`, `webview/editor.ts`):** `WebviewSync` composes intermediate transactions while `view.composing` (or `input.type.compose`) is active and flushes once on `compositionend`, `blur`, or non-composing `keydown` (dropped if an outside `replace` arrives mid-composition).
+- [x] **Myers diff for Git change bars (`src/lineDiff.ts`):** replaced the $O(m \times n)$ `Uint16Array` LCS table (capped at 4M cells) with Myers' $O((M+N)D)$ algorithm (`MAX_EDITS = 4000`), keeping far-apart edits in large files separate.
+- [x] **Redraw Mermaid on theme change (`webview/livePreview/renderWidgets.ts`):** `MutationObserver` on `document.body` `class` changes re-renders connected diagrams using the existing `${theme}\n${source}` cache.
+- [x] **Inline math in table cells (`webview/livePreview/blocks.ts`, `webview/livePreview/widgets.ts`):** `Span` includes `{ type: 'math'; tex }` and renders cell formulas with `loadKatex()`.
+
+**Features (in review priority order):**
+- [x] **Find & Replace (`@codemirror/search`):** `Ctrl/Cmd+F` and `Ctrl/Cmd+H` search the entire document (including off-screen lines and hidden widget source), and jumping to a match clears `pristineField` / updates selection so `reveal.ts` exposes the underlying Markdown source.
+- [x] **Code fence header (`FenceHeaderWidget` in `webview/livePreview/inline.ts`):** when the cursor is outside a fenced code block, the opening fence line shows the language label and a Copy button instead of collapsing.
+- [x] **Table row/column actions (`webview/livePreview/tableEdit.ts`, `webview/livePreview/widgets.ts`):** insert/delete rows and columns and navigate rows with `ArrowUp`/`ArrowDown` while editing a cell, modifying only affected lines/pipes without re-aligning the table.
+- [x] **Heading anchor completion (`webview/livePreview/completion.ts`):** `#slug` completions on `](#` using `findHeadings`.
+  - [ ] **File path completion after `](`:** deferred; requires adding a host message to list relative workspace files.
+- [x] **Code highlighting in HTML/PDF exports (`webview/livePreview/languages.ts`, `src/export.ts`, `src/MdEditorProvider.ts`):** done via `highlightCode` / `highlightedCode` in the open webview (reusing the lazy `languages.js` bundle); falls back to plain `<pre><code>` when exporting from a plain text tab.
+- [x] **Word count in the status bar (`src/wordCount.ts`, `src/MdEditorProvider.ts`):** shown when a custom editor tab is active (without duplicating the mode switcher).
+- *Skipped:* Smart paste of HTML tables (predictability/safety edge cases across arbitrary HTML tables; revisit only if requested).
 
 **Total for one developer: about 5 weeks.**
 

@@ -108,7 +108,31 @@ export const livePreviewTheme = EditorView.theme({
     borderTop: '1px solid var(--vscode-textBlockQuote-border)',
   },
 
-  '.cm-md-table': { borderCollapse: 'collapse', margin: '0.4em 24px' },
+  '.cm-md-table-wrap': { margin: '0.4em 24px' },
+  '.cm-md-table': { borderCollapse: 'collapse' },
+  '.cm-md-table-bar': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px',
+    marginTop: '4px',
+  },
+  '.cm-md-table-bar button': {
+    padding: '1px 6px',
+    border: '1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent))',
+    borderRadius: '3px',
+    backgroundColor: 'var(--vscode-editorWidget-background, var(--vscode-editor-background))',
+    color: 'var(--vscode-foreground)',
+    fontFamily: 'var(--vscode-font-family)',
+    fontSize: '0.8em',
+    cursor: 'pointer',
+  },
+  '.cm-md-table-bar button:hover:not(:disabled)': {
+    backgroundColor: 'var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground))',
+  },
+  '.cm-md-table-bar button:disabled': {
+    opacity: '0.4',
+    cursor: 'default',
+  },
   '.cm-md-table th, .cm-md-table td': {
     border: '1px solid var(--vscode-textBlockQuote-border)',
     padding: '3px 10px',
@@ -181,6 +205,39 @@ export const livePreviewTheme = EditorView.theme({
   '.cm-line.cm-md-fence-hidden': {
     lineHeight: '0.5',
     overflow: 'hidden',
+  },
+  '.cm-line.cm-md-fence-open': {
+    fontFamily: 'var(--vscode-font-family)',
+    fontSize: '0.8em',
+    lineHeight: '1.4',
+    paddingTop: '2px',
+  },
+  '.cm-md-fence-bar': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    color: muted,
+    userSelect: 'none',
+  },
+  '.cm-md-fence-lang': {
+    textTransform: 'lowercase',
+  },
+  '.cm-md-fence-copy': {
+    padding: '0 6px',
+    border: '1px solid transparent',
+    borderRadius: '3px',
+    background: 'transparent',
+    color: muted,
+    font: 'inherit',
+    cursor: 'pointer',
+  },
+  '.cm-md-fence-copy:hover': {
+    color: 'var(--vscode-foreground)',
+    backgroundColor: 'var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground))',
+  },
+  '.cm-md-fence-copy:focus-visible': {
+    outline: '1px solid var(--vscode-focusBorder)',
   },
   '.cm-line.cm-md-codeblock': {
     fontFamily: codeFont,

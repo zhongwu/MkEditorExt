@@ -81,3 +81,94 @@ export function insertRowChange(
   const insert = '\n' + indent + '|' + '  |'.repeat(colCount);
   return { from: tableLastLine.to, to: tableLastLine.to, insert };
 }
+
+export interface TableLine {
+  from: number;
+  to: number;
+  text: string;
+}
+
+/**
+ * Inserts a new empty row above or below `row` (0 = header, 1..N = body rows).
+ * Returns null if inserting above the header or if indices are out of range.
+ */
+export function insertRowAt(
+  lines: { headerEnd: number; delimiterEnd: number; rowLines: readonly TableLine[] },
+  row: number,
+  where: 'above' | 'below',
+  colCount: number,
+): { from: number; to: number; insert: string } | null {
+  if (colCount <= 0 || row < 0 || row >= lines.rowLines.length) return null;
+  if (row === 0 && where === 'above') return null;
+  const reference = lines.rowLines[row];
+  const indent = /^\s*/.exec(reference.text)?.[0] ?? '';
+  const insert = '\n' + indent + '|' + '  |'.repeat(colCount);
+  const at =
+    (row === 0 && where === 'below') || (row === 1 && where === 'above')
+      ? lines.delimiterEnd
+      : where === 'above'
+        ? lines.rowLines[row - 1].to
+        : reference.to;
+  return { from: at, to: at, insert };
+}
+
+/**
+ * Deletes body row `row` (1..N). Returns null for the header row (0) or out-of-range indices.
+ */
+export function deleteRowAt(
+  rowLines: readonly { from: number; to: number }[],
+  row: number,
+): { from: number; to: number } | null {
+  if (row <= 0 || row >= rowLines.length) return null;
+  return { from: rowLines[row].from - 1, to: rowLines[row].to };
+}
+
+/**
+ * Inserts an empty column to the left or right of `col` across all table lines without
+ * re-aligning existing cells. Returns null if any row lacks cell `col`.
+ */
+export function insertColumnAt(
+  allLines: readonly { from: number; text: string; isDelimiter?: boolean }[],
+  col: number,
+  where: 'left' | 'right',
+): { from: number; to: number; insert: string }[] | null {
+  const changes: { from: number; to: number; insert: string }[] = [];
+  for (const line of allLines) {
+    const cells = cellRanges(line.from, line.text);
+    if (col < 0 || col >= cells.length) return null;
+    const cell = cells[col];
+    const at = where === 'left' ? cell.from : cell.to;
+    const insert =
+      where === 'left'
+        ? line.isDelimiter
+          ? ' --- |'
+          : '  |'
+        : line.isDelimiter
+          ? '| --- '
+          : '|  ';
+    changes.push({ from: at, to: at, insert });
+  }
+  return changes;
+}
+
+/**
+ * Deletes column `col` across all table lines without re-aligning remaining cells.
+ * Returns null if the table has only one column or any row lacks cell `col`.
+ */
+export function deleteColumnAt(
+  allLines: readonly { from: number; text: string }[],
+  col: number,
+): { from: number; to: number }[] | null {
+  const changes: { from: number; to: number }[] = [];
+  for (const line of allLines) {
+    const cells = cellRanges(line.from, line.text);
+    if (cells.length <= 1 || col < 0 || col >= cells.length) return null;
+    const cell = cells[col];
+    changes.push(
+      col < cells.length - 1
+        ? { from: cell.from, to: cell.to + 1 }
+        : { from: cell.from - 1, to: cell.to },
+    );
+  }
+  return changes;
+}

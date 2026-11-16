@@ -30,7 +30,8 @@ export type Span =
    */
   | { type: 'task'; state: BoxState; at: number; length: number }
   | { type: 'em' | 'strong' | 'del' | 'code'; children: Span[] }
-  | { type: 'link'; href: string; children: Span[] };
+  | { type: 'link'; href: string; children: Span[] }
+  | { type: 'math'; tex: string };
 
 export type Align = 'left' | 'center' | 'right' | null;
 
@@ -152,6 +153,15 @@ function inlineSpans(
       case 'Image': {
         const [open, close] = child.getChildren('LinkMark');
         if (open && close) text(open.to, close.from);
+        break;
+      }
+      case 'InlineMath': {
+        const [open, close] = child.getChildren('MathMark');
+        if (open && close) {
+          out.push({ type: 'math', tex: doc.sliceString(open.to, close.from) });
+        } else {
+          text(child.from, child.to);
+        }
         break;
       }
       case 'Escape':

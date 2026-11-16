@@ -39,8 +39,11 @@ export function activate(context: vscode.ExtensionContext): void {
       needsFile();
       return;
     }
-    return run(context.extensionUri, document, (sources) =>
-      provider.drawDiagrams(document, sources),
+    return run(
+      context.extensionUri,
+      document,
+      (sources) => provider.drawDiagrams(document, sources),
+      (blocks) => provider.highlightCode(document, blocks),
     );
   };
   context.subscriptions.push(
