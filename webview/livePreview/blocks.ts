@@ -5,8 +5,8 @@
 // `collectBlocks` works out what to draw and has no DOM, so it can be unit-tested. `blockPreview`
 // turns that into decorations. Block decorations must come from a state field, not a view plugin.
 
-import { syntaxTree } from '@codemirror/language';
-import { EditorState, Facet, StateField, type Range, type Text } from '@codemirror/state';
+import { language, syntaxTree } from '@codemirror/language';
+import { EditorState, Facet, StateField, Text, type Range } from '@codemirror/state';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import { composingField, compositionEnded } from './composition';
@@ -158,7 +158,9 @@ function inlineSpans(
       case 'InlineMath': {
         const [open, close] = child.getChildren('MathMark');
         if (open && close) {
-          out.push({ type: 'math', tex: doc.sliceString(open.to, close.from) });
+          // In a table `\|` is how a pipe is written, in a formula too: `$\|x\|$` is |x|.
+          const tex = doc.sliceString(open.to, close.from).replace(/\\\|/g, '|');
+          out.push({ type: 'math', tex });
         } else {
           text(child.from, child.to);
         }
@@ -222,31 +224,58 @@ function alignOf(cell: string): Align {
   return left && right ? 'center' : right ? 'right' : left ? 'left' : null;
 }
 
-/** `origin`: where the widget starts, which the cell ranges count from. */
-function tableData(doc: Text, node: SyntaxNode, origin: number): TableData | undefined {
+/**
+ * `origin`: where the widget starts, which the cell ranges count from.
+ *
+ * A row whose `TableCell` nodes match the cells of its line is drawn from those nodes. A row
+ * with a pipe inside a formula (see `rowCells`) is not: the tree split that cell in pieces, so
+ * each cell is taken from the line's text instead. As on GitHub, cells beyond the header's
+ * column count are not shown.
+ */
+function tableData(state: EditorState, node: SyntaxNode, origin: number): TableData | undefined {
+  const { doc } = state;
   const head = node.getChild('TableHeader');
   if (!head) return undefined;
-  const cells = (row: SyntaxNode) =>
-    row
-      .getChildren('TableCell')
-      .map((cell) => trimmed(inlineSpans(doc, cell, { origin, tasks: true })));
+  const ctx = { origin, tasks: true };
+  /** A cell that the tree split in pieces is parsed again, as one piece of inline text. */
+  const reparsed = (range: CellRange): Span[] => {
+    const source = doc.sliceString(range.from, range.to);
+    // The "x " keeps text such as "# a" or "- a" from being read as a heading or a list.
+    const paragraph = state.facet(language)?.parser.parse('x ' + source).topNode.firstChild;
+    if (paragraph?.name !== 'Paragraph') return [{ type: 'text', text: source }];
+    const shifted = { origin: origin - (range.from - 2), tasks: true };
+    return inlineSpans(Text.of(['x ' + source]), paragraph, shifted, 2);
+  };
+  const cellsOf = (row: SyntaxNode, columns?: number) => {
+    const line = doc.lineAt(row.from);
+    const nodes = row.getChildren('TableCell');
+    const plain = cellRanges(line.from, line.text);
+    const ranges = columns === undefined ? plain : cellRanges(line.from, line.text, columns);
+    const relative = ranges.map((r) => ({ from: r.from - origin, to: r.to - origin }));
+    if (ranges.length === plain.length) {
+      // A row whose cells cannot be matched to the text is shown but not editable.
+      return {
+        cells: nodes.map((cell) => trimmed(inlineSpans(doc, cell, ctx))).slice(0, columns),
+        ranges: relative.length === nodes.length ? relative.slice(0, columns) : [],
+      };
+    }
+    const cells = ranges.map((range) => {
+      const inside = nodes.filter((cell) => cell.from >= range.from && cell.to <= range.to);
+      if (inside.length === 0) return [];
+      return trimmed(inside.length === 1 ? inlineSpans(doc, inside[0], ctx) : reparsed(range));
+    });
+    return { cells: cells.slice(0, columns), ranges: relative.slice(0, columns) };
+  };
   const delimiterLine = doc.lineAt(head.to).number + 1;
   const delimiter = delimiterLine <= doc.lines ? doc.line(delimiterLine).text : '';
   const align = delimiter.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(alignOf);
-  const rows = node.getChildren('TableRow');
-  const header = cells(head);
-  const body = rows.map(cells);
-  // A row whose cells cannot be matched to the text is shown but not editable.
-  const rangesOf = (row: SyntaxNode, count: number) => {
-    const line = doc.lineAt(row.from);
-    const ranges = cellRanges(line.from - origin, line.text);
-    return ranges.length === count ? ranges : [];
-  };
+  const header = cellsOf(head);
+  const body = node.getChildren('TableRow').map((row) => cellsOf(row, header.cells.length));
   return {
     align,
-    header,
-    rows: body,
-    ranges: [rangesOf(head, header.length), ...rows.map((row, i) => rangesOf(row, body[i].length))],
+    header: header.cells,
+    rows: body.map((row) => row.cells),
+    ranges: [header.ranges, ...body.map((row) => row.ranges)],
   };
 }
 
@@ -291,7 +320,7 @@ export function collectBlocks(
           // A table on the line of a list marker cannot be drawn as a block, so it stays text.
           const place = blockPlace(doc, node);
           if (place && !place.inline && !touched(place.from, node.to)) {
-            const data = tableData(doc, node, place.from);
+            const data = tableData(state, node, place.from);
             if (data) {
               items.push({
                 type: 'table',

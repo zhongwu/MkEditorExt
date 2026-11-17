@@ -37,6 +37,35 @@ describe('cellRanges', () => {
     expect(cells('| a \\| b | c |')).toEqual([' a \\| b ', ' c ']);
   });
 
+  it('keeps a pipe inside a formula in its cell, in a row that would have too many cells', () => {
+    const row = '| a | 将 $|G_x|$ 与 $0.5 |G_x| + 0.5 |G_y|$ 加权 |';
+    const split = (columns?: number) =>
+      cellRanges(0, row, columns).map((r) => row.slice(r.from, r.to));
+    expect(split()).toHaveLength(8);
+    expect(split(2)).toEqual([' a ', ' 将 $|G_x|$ 与 $0.5 |G_x| + 0.5 |G_y|$ 加权 ']);
+  });
+
+  it('splits at every pipe when the row fits, or when the dollars are not a formula', () => {
+    const split = (row: string, columns: number) =>
+      cellRanges(0, row, columns).map((r) => row.slice(r.from, r.to));
+    expect(split('| $a | b$ |', 2)).toEqual([' $a ', ' b$ ']);
+    expect(split('| $5 | and $6 | c |', 2)).toEqual([' $5 ', ' and $6 ', ' c ']);
+    expect(split('| `$` | x | `$` |', 2)).toEqual([' `$` ', ' x ', ' `$` ']);
+  });
+
+  it('deletes a whole column from a row with a pipe inside a formula', () => {
+    const texts = ['| a | b |', '| - | - |', '| 1 | $|x|$ |'];
+    let from = 0;
+    const lines = texts.map((text) => {
+      const line = { from, text };
+      from += text.length + 1;
+      return line;
+    });
+    const doc = texts.join('\n');
+    const changes = deleteColumnAt(lines, 1);
+    expect(changes?.map((c) => doc.slice(c.from, c.to))).toEqual(['| b ', '| - ', '| $|x|$ ']);
+  });
+
   it('adds the line offset to every range', () => {
     expect(cellRanges(10, '| a |')).toEqual([{ from: 11, to: 14 }]);
   });
@@ -51,6 +80,11 @@ describe('cellChange', () => {
 
   it('changes nothing when the text is the same', () => {
     expect(cellChange(range, '  old', 'old  ')).toBeNull();
+  });
+
+  it('leaves a cell with a bare pipe alone unless its text was changed', () => {
+    expect(cellChange(range, ' $|x|$ ', '$|x|$')).toBeNull();
+    expect(cellChange(range, ' $|x|$ ', '$|y|$')?.insert).toBe(' $\\|y\\|$ ');
   });
 
   it('escapes a typed pipe and turns line breaks into spaces', () => {

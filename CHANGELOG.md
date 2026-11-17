@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A table row with a formula that contains pipes, such as `$|G_x|$`, keeps the formula in one cell. Before, each pipe started a new cell and the row grew wider than the table. The HTML and PDF export does the same, and so do the column insert and delete actions. GitHub and VS Code's own preview still split such a row; writing the pipes as `\|` works everywhere, and editing the cell in the table does that for you.
+- A row with more cells than the table has columns shows only the columns, as on GitHub.
+
 ## 0.1.14 (2026-11-16)
 
 - Find and Replace (`Ctrl/Cmd+F`, `Ctrl+H` on Windows/Linux, `Cmd+Alt+F` on macOS) with a VS Code-style floating panel, match counts, and automatic source reveal when jumping to matches inside widgets.

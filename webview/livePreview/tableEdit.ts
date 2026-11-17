@@ -2,31 +2,19 @@
 // where each cell's text sits in the document and what a cell edit should change; they have no
 // DOM, so they can be unit-tested.
 
-export interface CellRange {
-  from: number;
-  to: number;
-}
+import { rowCells, splitRow, type CellRange } from '../../src/tableCells';
+
+export type { CellRange };
 
 /**
  * The range of each cell on one table line, between its pipes (padding spaces included).
  * `lineFrom` is the document offset of the line's first character. A pipe written `\|` belongs
- * to the cell's text and does not split it.
+ * to the cell's text and does not split it. With `columns`, the table's column count, a row with
+ * too many cells is read with the pipes inside formulas left alone (see `rowCells`).
  */
-export function cellRanges(lineFrom: number, text: string): CellRange[] {
-  const ranges: CellRange[] = [];
-  let i = 0;
-  while (i < text.length && /\s/.test(text[i])) i++;
-  if (text[i] === '|') i++;
-  let start = i;
-  for (; i <= text.length; i++) {
-    if (i === text.length || (text[i] === '|' && text[i - 1] !== '\\')) {
-      ranges.push({ from: lineFrom + start, to: lineFrom + i });
-      start = i + 1;
-    }
-  }
-  // After a closing pipe there is no further cell, only the end of the line.
-  if (/(?<!\\)\|\s*$/.test(text)) ranges.pop();
-  return ranges;
+export function cellRanges(lineFrom: number, text: string, columns?: number): CellRange[] {
+  const ranges = columns === undefined ? splitRow(text) : rowCells(text, columns);
+  return ranges.map((r) => ({ from: lineFrom + r.from, to: lineFrom + r.to }));
 }
 
 const NEXT_BOX: Record<string, string> = { '☐': '☑', '☑': '☒', '☒': '☐' };
@@ -60,10 +48,10 @@ export function cellChange(
   original: string,
   typed: string,
 ): { from: number; to: number; insert: string } | null {
-  const clean = typed
-    .replace(/\r?\n/g, ' ')
-    .trim()
-    .replace(/(?<!\\)\|/g, '\\|');
+  const flat = typed.replace(/\r?\n/g, ' ').trim();
+  // A cell left as it was is not touched, even if it holds a bare pipe (inside a formula).
+  if (flat === original.trim()) return null;
+  const clean = flat.replace(/(?<!\\)\|/g, '\\|');
   if (clean === original.trim()) return null;
   const text = boxCharacters(clean);
   if (text === original.trim()) return null;
@@ -132,9 +120,10 @@ export function insertColumnAt(
   col: number,
   where: 'left' | 'right',
 ): { from: number; to: number; insert: string }[] | null {
+  const columns = splitRow(allLines[0]?.text ?? '').length;
   const changes: { from: number; to: number; insert: string }[] = [];
   for (const line of allLines) {
-    const cells = cellRanges(line.from, line.text);
+    const cells = cellRanges(line.from, line.text, columns);
     if (col < 0 || col >= cells.length) return null;
     const cell = cells[col];
     const at = where === 'left' ? cell.from : cell.to;
@@ -159,9 +148,10 @@ export function deleteColumnAt(
   allLines: readonly { from: number; text: string }[],
   col: number,
 ): { from: number; to: number }[] | null {
+  const columns = splitRow(allLines[0]?.text ?? '').length;
   const changes: { from: number; to: number }[] = [];
   for (const line of allLines) {
-    const cells = cellRanges(line.from, line.text);
+    const cells = cellRanges(line.from, line.text, columns);
     if (cells.length <= 1 || col < 0 || col >= cells.length) return null;
     const cell = cells[col];
     changes.push(

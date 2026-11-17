@@ -16,6 +16,7 @@ import MarkdownIt, {
 } from 'markdown-it';
 import footnote from 'markdown-it-footnote';
 import { findHeadings, slugify } from './headings';
+import { rowCells, splitRow } from './tableCells';
 
 export interface ExportOptions {
   /** The page title; defaults to the first heading. */
@@ -166,6 +167,37 @@ function taskLists(state: StateCore): void {
   }
 }
 
+/**
+ * A table row with a pipe inside a formula, `| a | $|x|$ |`, was split at that pipe. Its cells
+ * are filled again from the line's text, read as the live preview reads it (see `rowCells`).
+ * Runs before the cells' inline text is parsed.
+ */
+function mathPipes(state: StateCore): void {
+  const lines = state.src.split('\n');
+  const tokens = state.tokens;
+  let columns = 0;
+  let body = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const { type, map } = tokens[i];
+    if (type === 'thead_open') columns = 0;
+    else if (type === 'th_open') columns++;
+    else if (type === 'tbody_open') body = true;
+    else if (type === 'tbody_close') body = false;
+    if (type !== 'tr_open' || !body || !map) continue;
+    const text = lines[map[0]] ?? '';
+    // In a quote the line starts with the quote's own marker; such a row is left as it is.
+    if (/^\s*>/.test(text)) continue;
+    const cells = rowCells(text, columns);
+    if (cells.length === splitRow(text).length) continue;
+    let column = 0;
+    for (let j = i + 1; j < tokens.length && tokens[j].type !== 'tr_close'; j++) {
+      if (tokens[j].type !== 'inline') continue;
+      const cell = cells[column++];
+      tokens[j].content = cell ? text.slice(cell.from, cell.to).trim().replace(/\\\|/g, '|') : '';
+    }
+  }
+}
+
 /** GitHub alerts: a quote whose first line is `[!NOTE]`, `[!TIP]` and so on. */
 function alerts(state: StateCore): void {
   const tokens = state.tokens;
@@ -215,6 +247,7 @@ function createParser(options: ExportOptions) {
   md.block.ruler.before('fence', 'math_block', blockMath, {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
   });
+  md.core.ruler.after('block', 'math_pipes', mathPipes);
   md.core.ruler.push('task_lists', taskLists);
   md.core.ruler.push('alerts', alerts);
   md.core.ruler.push('heading_ids', headingIds);

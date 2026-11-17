@@ -37,6 +37,17 @@ describe('renderHtml', () => {
     expect(html).toContain('class="task-list-item"');
   });
 
+  it('keeps a formula with pipes in one table cell', () => {
+    const html = page('| a | b |\n| - | - |\n| 1 | 将 $|G_x|$ 与 `y` |\n| 3 | 4 | 5 |\n');
+    const rows = html.split('<tr>').slice(2);
+    expect(rows[0].match(/<td>/g)).toHaveLength(2);
+    expect(rows[0]).toContain('class="katex"');
+    expect(rows[0]).toContain('与 <code>y</code>');
+    expect(rows[0]).not.toContain('$');
+    expect(rows[1]).toContain('<td>4</td>');
+    expect(rows[1]).not.toContain('5');
+  });
+
   it('renders GitHub alerts and leaves ordinary quotes alone', () => {
     const html = page('> [!WARNING]\n> Careful.\n\n> plain quote\n');
     expect(html).toContain('class="alert alert-warning"');

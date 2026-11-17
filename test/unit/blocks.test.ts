@@ -5,6 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { collectBlocks, type BlockItem } from '../../webview/livePreview/blocks';
 import { findFrontMatter } from '../../webview/livePreview/frontMatter';
 import { resolveImageSrc } from '../../webview/livePreview/images';
+import { mathExtension } from '../../webview/livePreview/math';
 import { engage, pristineField } from '../../webview/livePreview/reveal';
 
 const BASE = 'https://file.example/docs/';
@@ -94,6 +95,41 @@ describe('collectBlocks', () => {
         [{ type: 'code', children: [{ type: 'text', text: 'y' }] }],
       ],
     ]);
+  });
+
+  it('keeps a formula with pipes in one table cell, and draws formulas in cells', () => {
+    const doc = '| A | B |\n| - | - |\n| `x` | 将 $|G_x|$ 与 `y` |\n| $\\|a\\|$ | 2 |\n\nafter';
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(doc.length),
+      extensions: [markdown({ base: markdownLanguage, extensions: [mathExtension] })],
+    });
+    ensureSyntaxTree(state, doc.length, 5000);
+    const [table] = collectBlocks(state, BASE);
+    if (table.type !== 'table') throw new Error('not a table');
+    expect(table.data.rows).toEqual([
+      [
+        [{ type: 'code', children: [{ type: 'text', text: 'x' }] }],
+        [
+          { type: 'text', text: '将 ' },
+          { type: 'math', tex: '|G_x|' },
+          { type: 'text', text: ' 与 ' },
+          { type: 'code', children: [{ type: 'text', text: 'y' }] },
+        ],
+      ],
+      [[{ type: 'math', tex: '|a|' }], [{ type: 'text', text: '2' }]],
+    ]);
+    const cellText = table.data.ranges[1].map((r) => doc.slice(r.from, r.to));
+    expect(cellText).toEqual([' `x` ', ' 将 $|G_x|$ 与 `y` ']);
+  });
+
+  it('does not show the cells a row has beyond the header, as on GitHub', () => {
+    const [table] = blocks('| A | B |\n| - | - |\n| 1 | 2 | 3 | 4 |\n\n|after');
+    if (table.type !== 'table') throw new Error('not a table');
+    expect(table.data.rows).toEqual([
+      [[{ type: 'text', text: '1' }], [{ type: 'text', text: '2' }]],
+    ]);
+    expect(table.data.ranges[1]).toHaveLength(2);
   });
 
   it('shows the table source while the cursor is in it', () => {
